@@ -211,16 +211,21 @@ launcher `UA6()` uses a `Pseudoterminal` backed by **node-pty** (VS Code's bundl
 The terminal CLI discovers MCP tools via the **WebSocket server** (Patch 4) through
 lock file at `~/.claude/{PORT}.lock`, NOT the in-process server (Patch 8).
 
-### Patch 14: `NA6()` — auto-enable forceLocal on remote connection (~line 74250)
+### Patch 14: `NA6()` — remote connection guidance when forceLocal OFF (~line 74255)
 Because `extensionKind: ["ui", "workspace"]` makes the extension always run on the
-UI/local side, connecting to a remote server with `forceLocal: false` would cause
-ENOENT errors (CLI tries to access remote paths like `/robby/...` on the local Mac).
+UI/local side, connecting to a remote server with `forceLocal: false` causes ENOENT
+errors (CLI tries to access remote paths like `/robby/...` on the local Mac).
+This is a fundamental `extensionKind` limitation — it cannot be changed at runtime.
 
 **Fix**: At activation time, detect remote connection (`remoteAuthority`, `remoteName`,
 or non-`file` workspace URI scheme). If remote is detected and `forceLocal` is OFF,
-auto-enable it at workspace level via `configuration.update()` and show an
-informational notification. Users who want standard remote behavior should use the
-official `claude-code` extension instead.
+show a warning notification with two options:
+- **"Enable Force Local"** — enables forceLocal at workspace level, prompts reload
+- **"Disable This Extension"** — opens Extensions view, suggests using official extension
+
+Users who want standard remote behavior (CLI runs on remote server with internet)
+should use the official `claude-code` extension instead — it has `extensionKind:
+["workspace"]` and runs entirely on the remote side.
 
 ## src/remote-tools.js — Architecture
 

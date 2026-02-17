@@ -74253,11 +74253,11 @@ function NA6(v) {
         log: !0
     });
     v.subscriptions.push(z), L6.commands.executeCommand("setContext", "claude-vscode.updateSupported", !1);
-    // --- forceLocal: auto-enable when remote detected ---
+    // --- forceLocal: guide user when remote detected but forceLocal is OFF ---
     // This extension (claude-code-local) always runs on the UI/local side due to extensionKind: ["ui", "workspace"].
     // When connected to a remote server with forceLocal OFF, the CLI would try to access remote paths locally → ENOENT.
-    // Detect this and auto-enable forceLocal, with a notification to the user.
-    (function _checkAutoForceLocal() {
+    // We cannot switch extensionKind at runtime, so present the user with clear options.
+    (function _checkForceLocalRemoteGuide() {
         var _vsc = L6;
         var _cfg = _vsc.workspace.getConfiguration("claudeCode");
         var _forceLocal = _cfg.get("forceLocal", false);
@@ -74271,19 +74271,29 @@ function NA6(v) {
             if (_folders && _folders.length > 0 && _folders[0].uri.scheme !== "file") _isRemote = true;
         }
         if (!_isRemote) return; // local workspace, no action needed
-        // Remote detected but forceLocal is OFF — auto-enable and notify
-        z.info("forceLocal: remote connection detected but forceLocal is OFF. Auto-enabling forceLocal mode.");
-        _cfg.update("forceLocal", true, _vsc.ConfigurationTarget.Workspace).then(function() {
-            _vsc.window.showInformationMessage(
-                "Claude Code Local: detected remote connection — Force Local mode has been auto-enabled for this workspace.",
-                "OK", "Open Settings"
-            ).then(function(choice) {
-                if (choice === "Open Settings") {
-                    _vsc.commands.executeCommand("workbench.action.openSettings", "claudeCode.forceLocal");
-                }
-            });
-        }, function(err) {
-            z.warn("forceLocal: failed to auto-enable forceLocal:", err.message || err);
+        // Remote detected but forceLocal is OFF — guide user
+        z.info("forceLocal: remote connection detected but forceLocal is OFF. This extension runs locally and cannot use the remote CLI without Force Local mode.");
+        _vsc.window.showWarningMessage(
+            "Claude Code Local detected a remote connection, but Force Local mode is OFF. " +
+            "This extension always runs locally — without Force Local, file operations will fail. " +
+            "If the remote server has internet, use the official Claude Code extension instead.",
+            "Enable Force Local", "Disable This Extension"
+        ).then(function(choice) {
+            if (choice === "Enable Force Local") {
+                _cfg.update("forceLocal", true, _vsc.ConfigurationTarget.Workspace).then(function() {
+                    _vsc.window.showInformationMessage(
+                        "Force Local mode enabled for this workspace. Please reload the window.",
+                        "Reload"
+                    ).then(function(r) {
+                        if (r === "Reload") _vsc.commands.executeCommand("workbench.action.reloadWindow");
+                    });
+                });
+            } else if (choice === "Disable This Extension") {
+                _vsc.commands.executeCommand("workbench.action.openExtensionsView");
+                _vsc.window.showInformationMessage(
+                    "Disable 'Claude Code Local' and install/enable the official 'Claude Code' extension for remote servers with internet."
+                );
+            }
         });
     })();
     let U = new P2(v);
