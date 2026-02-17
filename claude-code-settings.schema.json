@@ -1,0 +1,1184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.schemastore.org/claude-code-settings.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema reference for Claude Code settings",
+      "type": "string",
+      "const": "https://json.schemastore.org/claude-code-settings.json"
+    },
+    "apiKeyHelper": {
+      "description": "Path to a script that outputs authentication values",
+      "type": "string"
+    },
+    "awsCredentialExport": {
+      "description": "Path to a script that exports AWS credentials",
+      "type": "string"
+    },
+    "awsAuthRefresh": {
+      "description": "Path to a script that refreshes AWS authentication",
+      "type": "string"
+    },
+    "fileSuggestion": {
+      "description": "Custom file suggestion configuration for @ mentions",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "command"
+        },
+        "command": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "command"
+      ]
+    },
+    "respectGitignore": {
+      "description": "Whether file picker should respect .gitignore files (default: true). Note: .ignore files are always respected.",
+      "type": "boolean"
+    },
+    "cleanupPeriodDays": {
+      "description": "Number of days to retain chat transcripts (0 to disable cleanup)",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "env": {
+      "description": "Environment variables to set for Claude Code sessions",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "attribution": {
+      "description": "Customize attribution text for commits and PRs. Each field defaults to the standard Claude Code attribution if not set.",
+      "type": "object",
+      "properties": {
+        "commit": {
+          "description": "Attribution text for git commits, including any trailers. Empty string hides attribution.",
+          "type": "string"
+        },
+        "pr": {
+          "description": "Attribution text for pull request descriptions. Empty string hides attribution.",
+          "type": "string"
+        }
+      }
+    },
+    "includeCoAuthoredBy": {
+      "description": "Deprecated: Use attribution instead. Whether to include Claude's co-authored by attribution in commits and PRs (defaults to true)",
+      "type": "boolean"
+    },
+    "permissions": {
+      "description": "Tool usage permissions configuration",
+      "type": "object",
+      "properties": {
+        "allow": {
+          "description": "List of permission rules for allowed operations",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deny": {
+          "description": "List of permission rules for denied operations",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ask": {
+          "description": "List of permission rules that should always prompt for confirmation",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultMode": {
+          "description": "Default permission mode when Claude Code needs access",
+          "type": "string",
+          "enum": [
+            "acceptEdits",
+            "bypassPermissions",
+            "default",
+            "delegate",
+            "dontAsk",
+            "plan"
+          ]
+        },
+        "disableBypassPermissionsMode": {
+          "description": "Disable the ability to bypass permission prompts",
+          "type": "string",
+          "enum": [
+            "disable"
+          ]
+        },
+        "additionalDirectories": {
+          "description": "Additional directories to include in the permission scope",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": {}
+    },
+    "model": {
+      "description": "Override the default model used by Claude Code",
+      "type": "string"
+    },
+    "availableModels": {
+      "description": "Allowlist of models that users can select. Accepts family aliases (\"opus\" allows any opus version), version prefixes (\"opus-4-5\" allows only that version), and full model IDs. If undefined, all models are available. If empty array, only the default model is available. Typically set in managed settings by enterprise administrators.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "enableAllProjectMcpServers": {
+      "description": "Whether to automatically approve all MCP servers in the project",
+      "type": "boolean"
+    },
+    "enabledMcpjsonServers": {
+      "description": "List of approved MCP servers from .mcp.json",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "disabledMcpjsonServers": {
+      "description": "List of rejected MCP servers from .mcp.json",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowedMcpServers": {
+      "description": "Enterprise allowlist of MCP servers that can be used. Applies to all scopes including enterprise servers from managed-mcp.json. If undefined, all servers are allowed. If empty array, no servers are allowed. Denylist takes precedence - if a server is on both lists, it is denied.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "description": "Name of the MCP server that users are allowed to configure",
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "serverCommand": {
+            "description": "Command array [command, ...args] to match exactly for allowed stdio servers",
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "serverUrl": {
+            "description": "URL pattern with wildcard support (e.g., \"https://*.example.com/*\") for allowed remote MCP servers",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "deniedMcpServers": {
+      "description": "Enterprise denylist of MCP servers that are explicitly blocked. If a server is on the denylist, it will be blocked across all scopes including enterprise. Denylist takes precedence over allowlist - if a server is on both lists, it is denied.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "description": "Name of the MCP server that is explicitly blocked",
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "serverCommand": {
+            "description": "Command array [command, ...args] to match exactly for blocked stdio servers",
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "serverUrl": {
+            "description": "URL pattern with wildcard support (e.g., \"https://*.example.com/*\") for blocked remote MCP servers",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "hooks": {
+      "description": "Custom commands to run before/after tool executions",
+      "type": "object",
+      "propertyNames": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "PreToolUse",
+              "PostToolUse",
+              "PostToolUseFailure",
+              "Notification",
+              "UserPromptSubmit",
+              "SessionStart",
+              "SessionEnd",
+              "Stop",
+              "SubagentStart",
+              "SubagentStop",
+              "PreCompact",
+              "PermissionRequest",
+              "Setup",
+              "TeammateIdle",
+              "TaskCompleted"
+            ]
+          },
+          {
+            "not": {}
+          }
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "matcher": {
+              "description": "String pattern to match (e.g. tool names like \"Write\")",
+              "type": "string"
+            },
+            "hooks": {
+              "description": "List of hooks to execute when the matcher matches",
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "Bash command hook type",
+                        "type": "string",
+                        "const": "command"
+                      },
+                      "command": {
+                        "description": "Shell command to execute",
+                        "type": "string"
+                      },
+                      "timeout": {
+                        "description": "Timeout in seconds for this specific command",
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "statusMessage": {
+                        "description": "Custom status message to display in spinner while hook runs",
+                        "type": "string"
+                      },
+                      "once": {
+                        "description": "If true, hook runs once and is removed after execution",
+                        "type": "boolean"
+                      },
+                      "async": {
+                        "description": "If true, hook runs in background without blocking",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "command"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "LLM prompt hook type",
+                        "type": "string",
+                        "const": "prompt"
+                      },
+                      "prompt": {
+                        "description": "Prompt to evaluate with LLM. Use $ARGUMENTS placeholder for hook input JSON.",
+                        "type": "string"
+                      },
+                      "timeout": {
+                        "description": "Timeout in seconds for this specific prompt evaluation",
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "model": {
+                        "description": "Model to use for this prompt hook (e.g., \"claude-sonnet-4-5-20250929\"). If not specified, uses the default small fast model.",
+                        "type": "string"
+                      },
+                      "statusMessage": {
+                        "description": "Custom status message to display in spinner while hook runs",
+                        "type": "string"
+                      },
+                      "once": {
+                        "description": "If true, hook runs once and is removed after execution",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "prompt"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "Agentic verifier hook type",
+                        "type": "string",
+                        "const": "agent"
+                      },
+                      "prompt": {
+                        "description": "Prompt describing what to verify (e.g. \"Verify that unit tests ran and passed.\"). Use $ARGUMENTS placeholder for hook input JSON.",
+                        "type": "string"
+                      },
+                      "timeout": {
+                        "description": "Timeout in seconds for agent execution (default 60)",
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "model": {
+                        "description": "Model to use for this agent hook (e.g., \"claude-sonnet-4-5-20250929\"). If not specified, uses Haiku.",
+                        "type": "string"
+                      },
+                      "statusMessage": {
+                        "description": "Custom status message to display in spinner while hook runs",
+                        "type": "string"
+                      },
+                      "once": {
+                        "description": "If true, hook runs once and is removed after execution",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "prompt"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "hooks"
+          ]
+        }
+      }
+    },
+    "worktree": {
+      "description": "Git worktree configuration for --worktree flag. Symlinks prevent duplicating large directories like node_modules across worktrees.",
+      "type": "object",
+      "properties": {
+        "symlinkDirectories": {
+          "description": "Directories to symlink from main repository to worktrees to avoid disk bloat. Must be explicitly configured - no directories are symlinked by default. Common examples: \"node_modules\", \".cache\", \".bin\"",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "disableAllHooks": {
+      "description": "Disable all hooks and statusLine execution",
+      "type": "boolean"
+    },
+    "allowManagedHooksOnly": {
+      "description": "When true (and set in managed settings), only hooks from managed settings run. User, project, and local hooks are ignored.",
+      "type": "boolean"
+    },
+    "allowManagedPermissionRulesOnly": {
+      "description": "When true (and set in managed settings), only permission rules (allow/deny/ask) from managed settings are respected. User, project, local, and CLI argument permission rules are ignored.",
+      "type": "boolean"
+    },
+    "statusLine": {
+      "description": "Custom status line display configuration",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "command"
+        },
+        "command": {
+          "type": "string"
+        },
+        "padding": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "command"
+      ]
+    },
+    "enabledPlugins": {
+      "description": "Enabled plugins using plugin-id@marketplace-id format. Example: { \"formatter@anthropic-tools\": true }. Also supports extended format with version constraints.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "not": {}
+          }
+        ]
+      }
+    },
+    "extraKnownMarketplaces": {
+      "description": "Additional marketplaces to make available for this repository. Typically used in repository .claude/settings.json to ensure team members have required plugin sources.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "description": "Where to fetch the marketplace from",
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "url"
+                  },
+                  "url": {
+                    "description": "Direct URL to marketplace.json file",
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "headers": {
+                    "description": "Custom HTTP headers (e.g., for authentication)",
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "source",
+                  "url"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "github"
+                  },
+                  "repo": {
+                    "description": "GitHub repository in owner/repo format",
+                    "type": "string"
+                  },
+                  "ref": {
+                    "description": "Git branch or tag to use (e.g., \"main\", \"v1.0.0\"). Defaults to repository default branch.",
+                    "type": "string"
+                  },
+                  "path": {
+                    "description": "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "repo"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "git"
+                  },
+                  "url": {
+                    "description": "Full git repository URL",
+                    "type": "string",
+                    "pattern": ".*\\.git$"
+                  },
+                  "ref": {
+                    "description": "Git branch or tag to use (e.g., \"main\", \"v1.0.0\"). Defaults to repository default branch.",
+                    "type": "string"
+                  },
+                  "path": {
+                    "description": "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "url"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "npm"
+                  },
+                  "package": {
+                    "description": "NPM package containing marketplace.json",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "package"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "file"
+                  },
+                  "path": {
+                    "description": "Local file path to marketplace.json",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "directory"
+                  },
+                  "path": {
+                    "description": "Local directory containing .claude-plugin/marketplace.json",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "hostPattern"
+                  },
+                  "hostPattern": {
+                    "description": "Regex pattern to match the host/domain extracted from any marketplace source type. For github sources, matches against \"github.com\". For git sources (SSH or HTTPS), extracts the hostname from the URL. Use in strictKnownMarketplaces to allow all marketplaces from a specific host (e.g., \"^github\\.mycompany\\.com$\").",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "hostPattern"
+                ]
+              }
+            ]
+          },
+          "installLocation": {
+            "description": "Local cache path where marketplace manifest is stored (auto-generated if not provided)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      }
+    },
+    "strictKnownMarketplaces": {
+      "description": "Enterprise strict list of allowed marketplace sources. When set in managed settings, ONLY these exact sources can be added as marketplaces. The check happens BEFORE downloading, so blocked sources never touch the filesystem.",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "url"
+              },
+              "url": {
+                "description": "Direct URL to marketplace.json file",
+                "type": "string",
+                "format": "uri"
+              },
+              "headers": {
+                "description": "Custom HTTP headers (e.g., for authentication)",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "source",
+              "url"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "github"
+              },
+              "repo": {
+                "description": "GitHub repository in owner/repo format",
+                "type": "string"
+              },
+              "ref": {
+                "description": "Git branch or tag to use (e.g., \"main\", \"v1.0.0\"). Defaults to repository default branch.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "repo"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "git"
+              },
+              "url": {
+                "description": "Full git repository URL",
+                "type": "string",
+                "pattern": ".*\\.git$"
+              },
+              "ref": {
+                "description": "Git branch or tag to use (e.g., \"main\", \"v1.0.0\"). Defaults to repository default branch.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "url"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "npm"
+              },
+              "package": {
+                "description": "NPM package containing marketplace.json",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "package"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "file"
+              },
+              "path": {
+                "description": "Local file path to marketplace.json",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "path"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "directory"
+              },
+              "path": {
+                "description": "Local directory containing .claude-plugin/marketplace.json",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "path"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "hostPattern"
+              },
+              "hostPattern": {
+                "description": "Regex pattern to match the host/domain extracted from any marketplace source type. For github sources, matches against \"github.com\". For git sources (SSH or HTTPS), extracts the hostname from the URL. Use in strictKnownMarketplaces to allow all marketplaces from a specific host (e.g., \"^github\\.mycompany\\.com$\").",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "hostPattern"
+            ]
+          }
+        ]
+      }
+    },
+    "blockedMarketplaces": {
+      "description": "Enterprise blocklist of marketplace sources. When set in managed settings, these exact sources are blocked from being added as marketplaces. The check happens BEFORE downloading, so blocked sources never touch the filesystem.",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "url"
+              },
+              "url": {
+                "description": "Direct URL to marketplace.json file",
+                "type": "string",
+                "format": "uri"
+              },
+              "headers": {
+                "description": "Custom HTTP headers (e.g., for authentication)",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "source",
+              "url"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "github"
+              },
+              "repo": {
+                "description": "GitHub repository in owner/repo format",
+                "type": "string"
+              },
+              "ref": {
+                "description": "Git branch or tag to use (e.g., \"main\", \"v1.0.0\"). Defaults to repository default branch.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "repo"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "git"
+              },
+              "url": {
+                "description": "Full git repository URL",
+                "type": "string",
+                "pattern": ".*\\.git$"
+              },
+              "ref": {
+                "description": "Git branch or tag to use (e.g., \"main\", \"v1.0.0\"). Defaults to repository default branch.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Path to marketplace.json within repo (defaults to .claude-plugin/marketplace.json)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "url"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "npm"
+              },
+              "package": {
+                "description": "NPM package containing marketplace.json",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "package"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "file"
+              },
+              "path": {
+                "description": "Local file path to marketplace.json",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "path"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "directory"
+              },
+              "path": {
+                "description": "Local directory containing .claude-plugin/marketplace.json",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "path"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "const": "hostPattern"
+              },
+              "hostPattern": {
+                "description": "Regex pattern to match the host/domain extracted from any marketplace source type. For github sources, matches against \"github.com\". For git sources (SSH or HTTPS), extracts the hostname from the URL. Use in strictKnownMarketplaces to allow all marketplaces from a specific host (e.g., \"^github\\.mycompany\\.com$\").",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "hostPattern"
+            ]
+          }
+        ]
+      }
+    },
+    "forceLoginMethod": {
+      "description": "Force a specific login method: \"claudeai\" for Claude Pro/Max, \"console\" for Console billing",
+      "type": "string",
+      "enum": [
+        "claudeai",
+        "console"
+      ]
+    },
+    "forceLoginOrgUUID": {
+      "description": "Organization UUID to use for OAuth login",
+      "type": "string"
+    },
+    "otelHeadersHelper": {
+      "description": "Path to a script that outputs OpenTelemetry headers",
+      "type": "string"
+    },
+    "outputStyle": {
+      "description": "Controls the output style for assistant responses",
+      "type": "string"
+    },
+    "language": {
+      "description": "Preferred language for Claude responses (e.g., \"japanese\", \"spanish\")",
+      "type": "string"
+    },
+    "skipWebFetchPreflight": {
+      "description": "Skip the WebFetch blocklist check for enterprise environments with restrictive security policies",
+      "type": "boolean"
+    },
+    "sandbox": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "autoAllowBashIfSandboxed": {
+          "type": "boolean"
+        },
+        "allowUnsandboxedCommands": {
+          "description": "Allow commands to run outside the sandbox via the dangerouslyDisableSandbox parameter. When false, the dangerouslyDisableSandbox parameter is completely ignored and all commands must run sandboxed. Default: true.",
+          "type": "boolean"
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "allowedDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowManagedDomainsOnly": {
+              "description": "When true (and set in managed settings), only allowedDomains and WebFetch(domain:...) allow rules from managed settings are respected. User, project, local, and flag settings domains are ignored. Denied domains are still respected from all sources.",
+              "type": "boolean"
+            },
+            "allowUnixSockets": {
+              "description": "macOS only: Unix socket paths to allow. Ignored on Linux (seccomp cannot filter by path).",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowAllUnixSockets": {
+              "description": "If true, allow all Unix sockets (disables blocking on both platforms).",
+              "type": "boolean"
+            },
+            "allowLocalBinding": {
+              "type": "boolean"
+            },
+            "httpProxyPort": {
+              "type": "number"
+            },
+            "socksProxyPort": {
+              "type": "number"
+            }
+          }
+        },
+        "ignoreViolations": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "enableWeakerNestedSandbox": {
+          "type": "boolean"
+        },
+        "excludedCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ripgrep": {
+          "description": "Custom ripgrep configuration for bundled ripgrep support",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      },
+      "additionalProperties": {}
+    },
+    "spinnerTipsEnabled": {
+      "description": "Whether to show tips in the spinner",
+      "type": "boolean"
+    },
+    "spinnerVerbs": {
+      "description": "Customize spinner verbs. mode: \"append\" adds verbs to defaults, \"replace\" uses only your verbs.",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "append",
+            "replace"
+          ]
+        },
+        "verbs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "mode",
+        "verbs"
+      ]
+    },
+    "syntaxHighlightingDisabled": {
+      "description": "Whether to disable syntax highlighting in diffs",
+      "type": "boolean"
+    },
+    "terminalTitleFromRename": {
+      "description": "When true, terminal tab title is set from /rename and not auto-updated based on the conversation topic",
+      "type": "boolean"
+    },
+    "alwaysThinkingEnabled": {
+      "description": "When false, thinking is disabled. When absent or true, thinking is enabled automatically for supported models.",
+      "type": "boolean"
+    },
+    "fastMode": {
+      "description": "When true, fast mode is enabled. When absent or false, fast mode is off.",
+      "type": "boolean"
+    },
+    "promptSuggestionEnabled": {
+      "description": "When false, prompt suggestions are disabled. When absent or true, prompt suggestions are enabled.",
+      "type": "boolean"
+    },
+    "agent": {
+      "description": "Name of an agent (built-in or custom) to use for the main thread. Applies the agent's system prompt, tool restrictions, and model.",
+      "type": "string"
+    },
+    "companyAnnouncements": {
+      "description": "Company announcements to display at startup (one will be randomly selected if multiple are provided)",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pluginConfigs": {
+      "description": "Per-plugin configuration including MCP server user configs, keyed by plugin ID (plugin@marketplace format)",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "mcpServers": {
+            "description": "User configuration values for MCP servers keyed by server name",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "remote": {
+      "description": "Remote session configuration",
+      "type": "object",
+      "properties": {
+        "defaultEnvironmentId": {
+          "description": "Default environment ID to use for remote sessions",
+          "type": "string"
+        }
+      }
+    },
+    "autoUpdatesChannel": {
+      "description": "Release channel for auto-updates (latest or stable)",
+      "type": "string",
+      "enum": [
+        "latest",
+        "stable"
+      ]
+    },
+    "minimumVersion": {
+      "description": "Minimum version to stay on - prevents downgrades when switching to stable channel",
+      "type": "string"
+    },
+    "plansDirectory": {
+      "description": "Custom directory for plan files, relative to project root. If not set, defaults to ~/.claude/plans/",
+      "type": "string"
+    },
+    "prefersReducedMotion": {
+      "description": "Reduce or disable animations for accessibility (spinner shimmer, flash effects, etc.)",
+      "type": "boolean"
+    },
+    "autoMemoryEnabled": {
+      "description": "Enable auto-memory for this project. When false, Claude will not read from or write to the auto-memory directory.",
+      "type": "boolean"
+    },
+    "skipDangerousModePermissionPrompt": {
+      "description": "Whether the user has accepted the bypass permissions mode dialog",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": {},
+  "title": "Claude Code Settings",
+  "description": "Configuration settings for Claude Code. Learn more: https://code.claude.com/docs/en/settings",
+  "$comment": "Generated on 2026-02-13T19:27:36.540Z"
+}

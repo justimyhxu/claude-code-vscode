@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Planning files (session-specific)
+task_plan.md
+findings.md
+progress.md
+plans/
+
+# Test artifacts
+test/
+
+# Build artifacts
+/tmp/vsix-build/
+*.vsix
+
+# Editor
+.vscode/

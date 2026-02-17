@@ -1,0 +1,4 @@
+resources/native-binary/claude filter=lfs diff=lfs merge=lfs -text
+resources/native-binary/claude.zst filter=lfs diff=lfs merge=lfs -text
+resources/native-binaries/darwin-arm64/claude filter=lfs diff=lfs merge=lfs -text
+resources/native-binaries/linux-x64/claude filter=lfs diff=lfs merge=lfs -text

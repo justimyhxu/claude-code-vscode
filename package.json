@@ -1,0 +1,504 @@
+{
+	"name": "claude-code-local",
+	"displayName": "Claude Code Local",
+	"extensionKind": [
+		"ui",
+		"workspace"
+	],
+	"description": "Claude Code for VS Code: Harness the power of Claude Code without leaving your IDE",
+	"version": "2.1.42",
+	"publisher": "Anthropic",
+	"license": "© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance.",
+	"bugs": {
+		"url": "https://github.com/anthropics/claude-code/issues",
+		"email": "support@anthropic.com"
+	},
+	"engines": {
+		"vscode": "^1.94.0"
+	},
+	"categories": [
+		"AI",
+		"Chat"
+	],
+	"keywords": [
+		"claude",
+		"sonnet",
+		"ai",
+		"mcp",
+		"agent"
+	],
+	"activationEvents": [
+		"onStartupFinished",
+		"onWebviewPanel:claudeVSCodePanel"
+	],
+	"icon": "resources/claude-logo.png",
+	"main": "./extension.js",
+	"contributes": {
+		"configuration": {
+			"title": "Claude Code",
+			"properties": {
+				"claudeCode.selectedModel": {
+					"type": "string",
+					"default": "default",
+					"description": "The AI model for Claude Code."
+				},
+				"claudeCode.environmentVariables": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "Environment variable name"
+							},
+							"value": {
+								"type": "string",
+								"description": "Environment variable value"
+							}
+						},
+						"required": [
+							"name",
+							"value"
+						]
+					},
+					"default": [],
+					"description": "Environment variables to set when launching Claude.\n\nPrefer setting environment variables in Claude's settings.json.\nSee documentation: https://code.claude.com/docs/en/settings"
+				},
+				"claudeCode.useTerminal": {
+					"type": "boolean",
+					"default": false,
+					"description": "Launch Claude in the terminal instead of the native UI."
+				},
+				"claudeCode.allowDangerouslySkipPermissions": {
+					"type": "boolean",
+					"description": "Allow bypass permissions mode. Recommended only for sandboxes with no internet access."
+				},
+				"claudeCode.claudeProcessWrapper": {
+					"type": "string",
+					"description": "Executable path used to launch the Claude process."
+				},
+				"claudeCode.respectGitIgnore": {
+					"type": "boolean",
+					"default": true,
+					"description": "Respect .gitignore files when performing file searches. Tip: You can still filter by other exclusion patterns in .ignore when this is disabled."
+				},
+				"claudeCode.initialPermissionMode": {
+					"type": "string",
+					"enum": [
+						"default",
+						"acceptEdits",
+						"plan",
+						"bypassPermissions"
+					],
+					"default": "default",
+					"description": "Initial permission mode for new conversations."
+				},
+				"claudeCode.disableLoginPrompt": {
+					"type": "boolean",
+					"default": false,
+					"description": "When true, never prompt for login/authentication in the extension. Used when authentication is handled externally."
+				},
+				"claudeCode.autosave": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically save files before Claude reads or writes them."
+				},
+				"claudeCode.useCtrlEnterToSend": {
+					"type": "boolean",
+					"default": false,
+					"description": "When enabled, use Ctrl/Cmd+Enter to send prompts instead of just Enter. This allows Enter to create new lines."
+				},
+				"claudeCode.preferredLocation": {
+					"type": "string",
+					"enum": [
+						"sidebar",
+						"panel"
+					],
+					"enumDescriptions": [
+						"Sidebar (Right)",
+						"Panel (New Tab)"
+					],
+					"default": "panel",
+					"description": "Where Claude opens by default. This setting updates automatically when you open Claude in a new location."
+				},
+				"claudeCode.enableNewConversationShortcut": {
+					"type": "boolean",
+					"default": true,
+					"description": "Use the Cmd/Ctrl+N keyboard shortcut to start a new conversation when Claude is focused."
+				},
+				"claudeCode.hideOnboarding": {
+					"type": "boolean",
+					"default": false,
+					"description": "Hide the onboarding checklist in Claude Code."
+				},
+				"claudeCode.usePythonEnvironment": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Automatically activate the workspace's Python environment when running Claude. Requires the [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python) extension."
+				},
+				"claudeCode.forceLocal": {
+					"type": "boolean",
+					"default": false,
+					"description": "Force Claude to run locally. File operations are proxied to remote via SSH. Only effective when connected to a remote server."
+				},
+				"claudeCode.sshHost": {
+					"type": "string",
+					"default": "",
+					"description": "SSH host override for force local mode. If empty, auto-detected from Remote SSH connection."
+				},
+				"claudeCode.sshIdentityFile": {
+					"type": "string",
+					"default": "",
+					"description": "Path to SSH private key file for remote connections (e.g. ~/.ssh/id_rsa). If empty, uses SSH defaults."
+				},
+				"claudeCode.sshExtraArgs": {
+					"type": "array",
+					"items": { "type": "string" },
+					"default": [],
+					"description": "Extra arguments to pass to the SSH command (e.g. [\"-p\", \"2222\"] for non-standard port)."
+				},
+				"claudeCode.useSSHExec": {
+					"type": "boolean",
+					"default": false,
+					"description": "Use direct SSH for bash/grep instead of VS Code terminal. Enable if terminal-based execution doesn't work."
+				},
+				"claudeCode.forceLocalDiffMode": {
+					"type": "string",
+					"enum": ["auto", "review"],
+					"default": "auto",
+					"markdownDescription": "How file edits are handled in force-local mode.\n- **auto**: Edits apply immediately, inline diff in chat (fast).\n- **review**: Opens VS Code diff tab before writing; you can edit the code and Accept/Reject (safe)."
+				}
+			}
+		},
+		"jsonValidation": [
+			{
+				"fileMatch": [
+					"**/.claude/settings.json",
+					"**/.claude/settings.local.json",
+					"**/ClaudeCode/managed-settings.json",
+					"**/claude-code/managed-settings.json"
+				],
+				"url": "./claude-code-settings.schema.json"
+			}
+		],
+		"commands": [
+			{
+				"command": "claude-vscode.editor.open",
+				"title": "Claude Code: Open in New Tab",
+				"icon": {
+					"light": "resources/claude-logo.svg",
+					"dark": "resources/claude-logo.svg"
+				}
+			},
+			{
+				"command": "claude-vscode.editor.openLast",
+				"title": "Claude Code: Open",
+				"icon": {
+					"light": "resources/claude-logo.svg",
+					"dark": "resources/claude-logo.svg"
+				}
+			},
+			{
+				"command": "claude-vscode.window.open",
+				"title": "Claude Code: Open in New Window"
+			},
+			{
+				"command": "claude-vscode.sidebar.open",
+				"title": "Claude Code: Open in Side Bar",
+				"icon": {
+					"light": "resources/claude-logo.svg",
+					"dark": "resources/claude-logo.svg"
+				}
+			},
+			{
+				"command": "claude-vscode.newConversation",
+				"title": "Claude Code: New Conversation"
+			},
+			{
+				"command": "claude-vscode.update",
+				"title": "Claude Code: Update extension"
+			},
+			{
+				"command": "claude-vscode.focus",
+				"title": "Claude Code: Focus input"
+			},
+			{
+				"command": "claude-vscode.blur",
+				"title": "Claude Code: Blur input"
+			},
+			{
+				"command": "claude-vscode.logout",
+				"title": "Claude Code: Logout"
+			},
+			{
+				"command": "claude-vscode.terminal.open",
+				"title": "Claude Code: Open in Terminal",
+				"icon": {
+					"light": "resources/claude-logo.svg",
+					"dark": "resources/claude-logo.svg"
+				}
+			},
+			{
+				"command": "claude-vscode.acceptProposedDiff",
+				"title": "Claude Code: Accept Proposed Changes",
+				"enablement": "claude-vscode.viewingProposedDiff",
+				"icon": "$(check)"
+			},
+			{
+				"command": "claude-vscode.rejectProposedDiff",
+				"title": "Claude Code: Reject Proposed Changes",
+				"enablement": "claude-vscode.viewingProposedDiff",
+				"icon": "$(discard)"
+			},
+			{
+				"command": "claude-vscode.insertAtMention",
+				"title": "Claude Code: Insert @-Mention Reference"
+			},
+			{
+				"command": "claude-vscode.installPlugin",
+				"title": "Claude Code: Install Plugin"
+			},
+			{
+				"command": "claude-code.acceptProposedDiff",
+				"title": "Claude Code: Accept Proposed Changes",
+				"enablement": "claude-code.viewingProposedDiff",
+				"icon": "$(check)"
+			},
+			{
+				"command": "claude-code.rejectProposedDiff",
+				"title": "Claude Code: Reject Proposed Changes",
+				"enablement": "claude-code.viewingProposedDiff",
+				"icon": "$(discard)"
+			},
+			{
+				"command": "claude-code.insertAtMentioned",
+				"title": "Claude Code: Insert At-Mentioned"
+			},
+			{
+				"command": "claude-vscode.showLogs",
+				"title": "Claude Code: Show Logs"
+			},
+			{
+				"command": "claude-vscode.openWalkthrough",
+				"title": "Claude Code: Open Walkthrough"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "claude-vscode.insertAtMention",
+				"key": "alt+k",
+				"mac": "alt+k",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "claude-vscode.focus",
+				"key": "cmd+escape",
+				"mac": "cmd+escape",
+				"win": "ctrl+escape",
+				"linux": "ctrl+escape",
+				"when": "!config.claudeCode.useTerminal && editorTextFocus"
+			},
+			{
+				"command": "claude-vscode.blur",
+				"key": "cmd+escape",
+				"mac": "cmd+escape",
+				"win": "ctrl+escape",
+				"linux": "ctrl+escape",
+				"when": "!config.claudeCode.useTerminal && !editorTextFocus"
+			},
+			{
+				"command": "claude-vscode.editor.open",
+				"key": "cmd+shift+escape",
+				"mac": "cmd+shift+escape",
+				"win": "ctrl+shift+escape",
+				"linux": "ctrl+shift+escape",
+				"when": "!config.claudeCode.useTerminal"
+			},
+			{
+				"command": "claude-vscode.terminal.open.keyboard",
+				"key": "cmd+escape",
+				"mac": "cmd+escape",
+				"win": "ctrl+escape",
+				"linux": "ctrl+escape",
+				"when": "config.claudeCode.useTerminal"
+			},
+			{
+				"command": "claude-code.insertAtMentioned",
+				"key": "cmd+alt+K",
+				"mac": "cmd+alt+K",
+				"win": "ctrl+alt+K",
+				"linux": "ctrl+alt+K",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "claude-vscode.newConversation",
+				"key": "cmd+n",
+				"mac": "cmd+n",
+				"win": "ctrl+n",
+				"linux": "ctrl+n",
+				"when": "config.claudeCode.enableNewConversationShortcut && (activeWebviewPanelId == 'claudeVSCodePanel' || (claude-vscode.sideBarActive && !editorFocus && !panelFocus))"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "claude-sidebar",
+					"title": "Claude Code",
+					"icon": "resources/claude-logo.svg",
+					"when": "claude-code:doesNotSupportSecondarySidebar"
+				}
+			],
+			"secondarySidebar": [
+				{
+					"id": "claude-sidebar-secondary",
+					"title": "Claude Code",
+					"icon": "resources/claude-logo.svg",
+					"when": "!claude-code:doesNotSupportSecondarySidebar"
+				}
+			]
+		},
+		"views": {
+			"claude-sidebar": [
+				{
+					"type": "webview",
+					"id": "claudeVSCodeSidebar",
+					"name": "Claude Code",
+					"when": "claude-code:doesNotSupportSecondarySidebar"
+				}
+			],
+			"claude-sidebar-secondary": [
+				{
+					"type": "webview",
+					"id": "claudeVSCodeSidebarSecondary",
+					"name": "Claude Code",
+					"when": "!claude-code:doesNotSupportSecondarySidebar"
+				}
+			]
+		},
+		"walkthroughs": [
+			{
+				"id": "claude-code-walkthrough",
+				"title": "Get started with Claude Code",
+				"description": "Learn how to use Claude Code to write, edit, and understand your code.",
+				"steps": [
+					{
+						"id": "welcome",
+						"title": "Your AI coding partner",
+						"description": "Claude Code helps you write, edit, and understand code right in VS Code.",
+						"media": {
+							"markdown": "resources/walkthrough/step1.md"
+						}
+					},
+					{
+						"id": "open-claude",
+						"title": "Open Claude Code",
+						"description": "Click the orange Claude icon in the top right corner, or press Ctrl+Escape (Cmd+Escape on Mac) to start a conversation.",
+						"media": {
+							"markdown": "resources/walkthrough/step2.md"
+						},
+						"completionEvents": [
+							"onCommand:claude-vscode.sidebar.open",
+							"onCommand:claude-vscode.editor.open"
+						]
+					},
+					{
+						"id": "chat",
+						"title": "Chat with Claude",
+						"description": "Type a message and press Enter. Ask questions, request changes, or get help understanding your code. Use @ to mention files for context, or select code first to ask about it.",
+						"media": {
+							"markdown": "resources/walkthrough/step3.md"
+						}
+					},
+					{
+						"id": "sessions",
+						"title": "Past conversations",
+						"description": "Click the Past Conversations button at the top or type /resume to browse past sessions. You can start a new conversation anytime by pressing Ctrl+N (Cmd+N).",
+						"media": {
+							"markdown": "resources/walkthrough/step4.md"
+						}
+					}
+				]
+			}
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "claude-vscode.acceptProposedDiff",
+					"when": "claude-vscode.viewingProposedDiff",
+					"group": "navigation"
+				},
+				{
+					"command": "claude-vscode.rejectProposedDiff",
+					"when": "claude-vscode.viewingProposedDiff",
+					"group": "navigation"
+				},
+				{
+					"command": "claude-code.acceptProposedDiff",
+					"when": "claude-code.viewingProposedDiff",
+					"group": "navigation"
+				},
+				{
+					"command": "claude-code.rejectProposedDiff",
+					"when": "claude-code.viewingProposedDiff",
+					"group": "navigation"
+				},
+				{
+					"command": "claude-vscode.editor.openLast",
+					"when": "!config.claudeCode.useTerminal",
+					"group": "navigation"
+				},
+				{
+					"command": "claude-vscode.terminal.open",
+					"when": "config.claudeCode.useTerminal",
+					"group": "navigation"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "claude-vscode.update",
+					"when": "claude-vscode.updateSupported"
+				},
+				{
+					"command": "claude-vscode.editor.openLast",
+					"when": "false"
+				},
+				{
+					"command": "claude-vscode.blur",
+					"when": "false"
+				},
+				{
+					"command": "claude-vscode.newConversation",
+					"when": "false"
+				},
+				{
+					"command": "claude-code.insertAtMentioned",
+					"when": "config.claudeCode.useTerminal"
+				},
+				{
+					"command": "claude-vscode.insertAtMention",
+					"when": "!config.claudeCode.useTerminal"
+				},
+				{
+					"command": "claude-vscode.installPlugin",
+					"when": "claude-vscode.updateSupported"
+				}
+			]
+		}
+	},
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": false,
+			"description": "untusted workspaces are not supported"
+		}
+	},
+	"scripts": {},
+	"dependencies": {},
+	"__metadata": {
+		"installedTimestamp": 1771014927402,
+		"targetPlatform": "darwin-arm64",
+		"size": 230294357
+	},
+	"enabledApiProposals": [
+		"resolvers"
+	]
+}
