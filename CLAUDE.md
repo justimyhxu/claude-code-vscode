@@ -38,7 +38,7 @@ MCP tools are auto-approved via `allowedTools` — no permission prompts.
 | File | Role | Status |
 |------|------|--------|
 | `package.json` | Extension manifest, settings, extensionKind | Modified |
-| `extension.js` | Main extension (73k lines, minified then beautified) | 12 surgical patches |
+| `extension.js` | Main extension (73k lines, minified then beautified) | 13 surgical patches |
 | `src/remote-tools.js` | 6 MCP tools for remote file proxy | NEW file, ~587 lines |
 | `webview/index.js` | Webview React UI (minified) | Unchanged |
 | `webview/index.css` | Webview styles (minified) | Unchanged |
@@ -53,7 +53,7 @@ MCP tools are auto-approved via `allowedTools` — no permission prompts.
 - Settings: `claudeCode.forceLocal`, `claudeCode.sshHost`, `claudeCode.sshIdentityFile`,
   `claudeCode.sshExtraArgs`, `claudeCode.useSSHExec`, `claudeCode.forceLocalDiffMode`
 
-## extension.js Patches (11 total)
+## extension.js Patches (12 total)
 
 All patches operate on the beautified minified code. Key variable names:
 - `z6, WJ, g9, L6, M0` = various `vscode` module aliases
@@ -210,6 +210,17 @@ launcher `UA6()` uses a `Pseudoterminal` backed by **node-pty** (VS Code's bundl
 
 The terminal CLI discovers MCP tools via the **WebSocket server** (Patch 4) through
 lock file at `~/.claude/{PORT}.lock`, NOT the in-process server (Patch 8).
+
+### Patch 14: `NA6()` — auto-enable forceLocal on remote connection (~line 74250)
+Because `extensionKind: ["ui", "workspace"]` makes the extension always run on the
+UI/local side, connecting to a remote server with `forceLocal: false` would cause
+ENOENT errors (CLI tries to access remote paths like `/robby/...` on the local Mac).
+
+**Fix**: At activation time, detect remote connection (`remoteAuthority`, `remoteName`,
+or non-`file` workspace URI scheme). If remote is detected and `forceLocal` is OFF,
+auto-enable it at workspace level via `configuration.update()` and show an
+informational notification. Users who want standard remote behavior should use the
+official `claude-code` extension instead.
 
 ## src/remote-tools.js — Architecture
 

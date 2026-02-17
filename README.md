@@ -369,7 +369,7 @@ VS Code Remote SSH already maintains an authenticated, multiplexed SSH connectio
 
 ### Why Monkey-Patch Instead of Fork?
 
-The extension is distributed as a single minified `extension.js` file (~73k lines when beautified). Forking and maintaining a full build toolchain for Anthropic's proprietary code would be impractical and legally questionable. Instead, this project applies **12 surgical patches** to the beautified code at specific function boundaries. Each patch is:
+The extension is distributed as a single minified `extension.js` file (~73k lines when beautified). Forking and maintaining a full build toolchain for Anthropic's proprietary code would be impractical and legally questionable. Instead, this project applies **13 surgical patches** to the beautified code at specific function boundaries. Each patch is:
 
 - Self-contained and documented in CLAUDE.md
 - Identifiable by line number and surrounding context
@@ -384,7 +384,7 @@ The `src/remote-tools.js` file is the only wholly new code -- a clean ~587-line 
 | **macOS ARM64 only** | The bundled CLI binary (`resources/native-binary/claude`) is an ARM64 Mach-O executable. Running on Intel Macs, Linux, or Windows would require replacing this binary with the appropriate platform build. |
 | **Glob line numbers wrap at 100** | The webview's code block renderer truncates 3-digit line numbers. This is a cosmetic issue in the original extension's `webview/index.js` and is not introduced by this patch. |
 | **API 403 telemetry errors** | Some API 403 / AxiosError messages appear in logs. These appear to be telemetry-related and do not affect functionality. |
-| **Extension version locked** | Based on v2.1.42. Updating to a newer version of the official extension requires re-applying the 12 patches to the new `extension.js`. |
+| **Extension version locked** | Based on v2.1.42. Updating to a newer version of the official extension requires re-applying the 13 patches to the new `extension.js`. |
 | **No Windows/Linux testing** | Only tested on macOS with Remote SSH to Linux servers. |
 
 ## File Structure
@@ -392,7 +392,7 @@ The `src/remote-tools.js` file is the only wholly new code -- a clean ~587-line 
 ```
 claude-code-vscode/
 |-- package.json            # Extension manifest (modified: name, extensionKind, settings)
-|-- extension.js            # Main extension code (12 surgical patches applied)
+|-- extension.js            # Main extension code (13 surgical patches applied)
 |-- src/
 |   '-- remote-tools.js    # 6 MCP proxy tools (NEW file, ~587 lines)
 |-- webview/
@@ -788,7 +788,7 @@ VS Code Remote SSH 已经维护了一个经过身份验证的、多路复用的 
 
 ### 为什么选择猴子补丁而不是分叉？
 
-扩展以单个压缩的 `extension.js` 文件（美化后约 73000 行）分发。分叉并维护 Anthropic 专有代码的完整构建工具链既不实际，在法律上也有疑问。相反，本项目在美化后的代码上特定函数边界处应用 **12 个外科手术式补丁**。每个补丁都是：
+扩展以单个压缩的 `extension.js` 文件（美化后约 73000 行）分发。分叉并维护 Anthropic 专有代码的完整构建工具链既不实际，在法律上也有疑问。相反，本项目在美化后的代码上特定函数边界处应用 **13 个外科手术式补丁**。每个补丁都是：
 
 - 自包含的，在 CLAUDE.md 中有文档记录
 - 可通过行号和上下文定位
@@ -803,7 +803,7 @@ VS Code Remote SSH 已经维护了一个经过身份验证的、多路复用的 
 | **仅支持 macOS ARM64** | 捆绑的 CLI 二进制文件（`resources/native-binary/claude`）是 ARM64 Mach-O 可执行文件。在 Intel Mac、Linux 或 Windows 上运行需要替换为相应平台的二进制文件。 |
 | **Glob 行号在 100 处换行** | Webview 的代码块渲染器会截断三位数行号。这是原始扩展 `webview/index.js` 中的外观问题，非本补丁引入。 |
 | **API 403 遥测错误** | 日志中出现一些 API 403 / AxiosError 消息。这些似乎与遥测相关，不影响功能。 |
-| **扩展版本锁定** | 基于 v2.1.42。更新到更新版本的官方扩展需要在新的 `extension.js` 上重新应用 12 个补丁。 |
+| **扩展版本锁定** | 基于 v2.1.42。更新到更新版本的官方扩展需要在新的 `extension.js` 上重新应用 13 个补丁。 |
 | **未在 Windows/Linux 上测试** | 仅在 macOS 上通过 Remote SSH 连接到 Linux 服务器的场景下测试。 |
 
 ## 文件结构
@@ -811,7 +811,7 @@ VS Code Remote SSH 已经维护了一个经过身份验证的、多路复用的 
 ```
 claude-code-vscode/
 |-- package.json            # 扩展清单（已修改：name、extensionKind、settings）
-|-- extension.js            # 主扩展代码（已应用 12 个外科手术式补丁）
+|-- extension.js            # 主扩展代码（已应用 13 个外科手术式补丁）
 |-- src/
 |   '-- remote-tools.js    # 6 个 MCP 代理工具（新文件，约 587 行）
 |-- webview/

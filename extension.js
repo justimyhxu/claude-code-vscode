@@ -74253,6 +74253,39 @@ function NA6(v) {
         log: !0
     });
     v.subscriptions.push(z), L6.commands.executeCommand("setContext", "claude-vscode.updateSupported", !1);
+    // --- forceLocal: auto-enable when remote detected ---
+    // This extension (claude-code-local) always runs on the UI/local side due to extensionKind: ["ui", "workspace"].
+    // When connected to a remote server with forceLocal OFF, the CLI would try to access remote paths locally → ENOENT.
+    // Detect this and auto-enable forceLocal, with a notification to the user.
+    (function _checkAutoForceLocal() {
+        var _vsc = L6;
+        var _cfg = _vsc.workspace.getConfiguration("claudeCode");
+        var _forceLocal = _cfg.get("forceLocal", false);
+        if (_forceLocal) return; // already enabled, nothing to do
+        // Detect remote connection
+        var _isRemote = false;
+        if (_vsc.env.remoteAuthority) _isRemote = true;
+        else if (_vsc.env.remoteName) _isRemote = true;
+        else {
+            var _folders = _vsc.workspace.workspaceFolders;
+            if (_folders && _folders.length > 0 && _folders[0].uri.scheme !== "file") _isRemote = true;
+        }
+        if (!_isRemote) return; // local workspace, no action needed
+        // Remote detected but forceLocal is OFF — auto-enable and notify
+        z.info("forceLocal: remote connection detected but forceLocal is OFF. Auto-enabling forceLocal mode.");
+        _cfg.update("forceLocal", true, _vsc.ConfigurationTarget.Workspace).then(function() {
+            _vsc.window.showInformationMessage(
+                "Claude Code Local: detected remote connection — Force Local mode has been auto-enabled for this workspace.",
+                "OK", "Open Settings"
+            ).then(function(choice) {
+                if (choice === "Open Settings") {
+                    _vsc.commands.executeCommand("workbench.action.openSettings", "claudeCode.forceLocal");
+                }
+            });
+        }, function(err) {
+            z.warn("forceLocal: failed to auto-enable forceLocal:", err.message || err);
+        });
+    })();
     let U = new P2(v);
     U.migrateAllSettings(), v.subscriptions.push(L6.workspace.onDidChangeConfiguration(($) => {
         if ($.affectsConfiguration("claudeCode.respectGitIgnore")) kx.cache.clear?.()
