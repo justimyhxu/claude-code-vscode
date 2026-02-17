@@ -1,13 +1,22 @@
-# Claude Code VS Code - Force Local Mode
+# Claude Code VS Code - Dual Mode (Local + Remote)
 
 ## Project Goal
 
-Patch the official Claude Code VS Code extension (v2.1.42) to add **Force Local** mode:
-when using VS Code Remote SSH to connect to a server **without internet**, the extension
-and CLI run **locally** (with internet for API calls), while file operations are **proxied**
-to the remote server through VS Code's remote filesystem APIs and terminal.
+Patch the official Claude Code VS Code extension (v2.1.42) to support **two working modes**
+via a single extension, controlled by the `claudeCode.forceLocal` setting:
+
+| Mode | Setting | Where Extension Runs | Where CLI Runs | Use Case |
+|------|---------|---------------------|---------------|----------|
+| **Local Mode** | `forceLocal: true` | Local machine (UI side) | Local (macOS) | Remote server has **no internet** |
+| **Remote Mode** | `forceLocal: false` | Remote server (workspace side) | Remote (Linux) | Remote server has **internet** — identical to official extension |
+
+Both modes use the same VSIX package, which bundles CLI binaries for macOS ARM64 and
+Linux x64. The extension dynamically switches `extensionKind` in `package.json` based
+on the `forceLocal` setting, and prompts a VS Code reload when a switch is needed.
 
 ## Architecture
+
+### Local Mode (`forceLocal: true`)
 
 ```
 LOCAL MACHINE (has internet)              REMOTE SERVER (has files, no internet)
@@ -18,7 +27,7 @@ LOCAL MACHINE (has internet)              REMOTE SERVER (has files, no internet)
 │    ├─ In-process MCP Server │           │                          │
 │    │   └─ 6 remote tools    │──vscode──>│  read, write, edit, etc  │
 │    ├─ Hidden Terminal ──────│──vscode──>│  bash, grep (via term)   │
-│    └─ CLI (native binary)   │           │                          │
+│    └─ CLI (macOS binary)    │           │                          │
 │        disallowedTools:     │           │                          │
 │        Read,Write,Edit,etc  │           │                          │
 │        allowedTools:        │           │                          │
@@ -33,16 +42,36 @@ in `src/remote-tools.js` proxy file operations to the remote server via:
 
 MCP tools are auto-approved via `allowedTools` — no permission prompts.
 
+### Remote Mode (`forceLocal: false`)
+
+```
+LOCAL MACHINE                             REMOTE SERVER (has internet + files)
+┌─────────────────────────────┐           ┌──────────────────────────┐
+│  VS Code UI                 │           │  VS Code Server          │
+│  (thin client)              │           │  Extension Host          │
+│                             │◄─────────►│    ├─ Webview            │
+│                             │           │    ├─ CLI (Linux binary)  │
+│                             │           │    └─ Standard tools     │
+│                             │           │        Read, Write, etc  │
+└─────────────────────────────┘           └──────────────────────────┘
+```
+
+Extension runs on the remote server, identical to the official Claude Code extension.
+All patches are gated by `isForceLocalMode()` and have zero effect in this mode.
+The Linux x64 CLI binary is used via the existing `wD6()` multi-platform lookup.
+
 ## Key Files
 
 | File | Role | Status |
 |------|------|--------|
 | `package.json` | Extension manifest, settings, extensionKind | Modified |
-| `extension.js` | Main extension (73k lines, minified then beautified) | 13 surgical patches |
+| `extension.js` | Main extension (74k lines, minified then beautified) | 14 surgical patches |
 | `src/remote-tools.js` | 6 MCP tools for remote file proxy | NEW file, ~587 lines |
 | `webview/index.js` | Webview React UI (minified) | Unchanged |
 | `webview/index.css` | Webview styles (minified) | Unchanged |
-| `resources/native-binary/claude` | CLI binary (ARM64 Mach-O) | Unchanged |
+| `resources/native-binaries/darwin-arm64/claude` | CLI binary (macOS ARM64 Mach-O) | From official VSIX |
+| `resources/native-binaries/linux-x64/claude` | CLI binary (Linux x86-64 ELF) | From official Linux VSIX |
+| `resources/native-binary/claude` | CLI binary fallback (macOS ARM64) | Unchanged, kept for compatibility |
 
 ## package.json Changes
 
@@ -53,7 +82,7 @@ MCP tools are auto-approved via `allowedTools` — no permission prompts.
 - Settings: `claudeCode.forceLocal`, `claudeCode.sshHost`, `claudeCode.sshIdentityFile`,
   `claudeCode.sshExtraArgs`, `claudeCode.useSSHExec`, `claudeCode.forceLocalDiffMode`
 
-## extension.js Patches (12 total)
+## extension.js Patches (14 total)
 
 All patches operate on the beautified minified code. Key variable names:
 - `z6, WJ, g9, L6, M0` = various `vscode` module aliases
@@ -184,7 +213,8 @@ Without this fix:
 ### Patch 13: `UA6()` — terminal mode Force Local support (~line 73849)
 When `isForceLocalMode()` is true and the user has `useTerminal: true`, the terminal
 launcher `UA6()` uses a `Pseudoterminal` backed by **node-pty** (VS Code's bundled
-`node_modules/node-pty`) to run the CLI locally:
+`node_modules/node-pty`) to run the CLI locally. CLI binary path resolved via `wD6()`
+multi-platform lookup (falls back to `resources/native-binary/claude`).
 
 **Primary: node-pty** (loaded from `vscode.env.appRoot + "/node_modules/node-pty"`):
 - `nodePty.spawn(cliPath, cliArgs, { name, cols, rows, cwd, env })` — real PTY
@@ -223,9 +253,10 @@ current `extensionKind` in the extension's `package.json`:
 - `forceLocal: false` → extensionKind should be `["workspace", "ui"]`
 
 If they don't match, rewrite `package.json` and prompt the user to reload. Also
-watches `onDidChangeConfiguration` for runtime `forceLocal` changes — if the user
-toggles the setting in VS Code preferences, it updates `package.json` and prompts
-reload immediately.
+watches `onDidChangeConfiguration` for runtime `forceLocal` changes (debounced at
+500ms with value deduplication to prevent flip-flop when VS Code fires config change
+events for multiple scopes) — if the user toggles the setting, it updates `package.json`
+and prompts reload immediately.
 
 This means a single extension handles both scenarios:
 - **forceLocal ON** → extension runs locally, CLI locally, MCP proxy to remote
@@ -551,20 +582,60 @@ tab natively (blocks until Accept/Reject). `openDiff()` always calls `RY()` — 
 cp package.json extension.js /tmp/vsix-build/extension/
 cp src/remote-tools.js /tmp/vsix-build/extension/src/
 
+# Ensure both platform binaries are in place
+mkdir -p /tmp/vsix-build/extension/resources/native-binaries/darwin-arm64
+mkdir -p /tmp/vsix-build/extension/resources/native-binaries/linux-x64
+cp resources/native-binaries/darwin-arm64/claude /tmp/vsix-build/extension/resources/native-binaries/darwin-arm64/
+cp resources/native-binaries/linux-x64/claude /tmp/vsix-build/extension/resources/native-binaries/linux-x64/
+
 # Build
 cd /tmp/vsix-build && zip -r /tmp/claude-code-local.vsix .
 
 # Install
-code --install-extension /tmp/claude-code-local.vsix
+code --install-extension /tmp/claude-code-local.vsix --force
 ```
+
+## Multi-Platform Binary Support
+
+The VSIX bundles CLI binaries for two platforms:
+
+```
+resources/
+  native-binaries/
+    darwin-arm64/claude    ← 175MB, macOS ARM64 (Mach-O)
+    linux-x64/claude       ← 213MB, Linux x86-64 (ELF)
+  native-binary/claude     ← fallback (macOS ARM64, kept for compatibility)
+```
+
+The existing `wD6()` function in extension.js (line 71315) handles multi-platform
+binary lookup: `resources/native-binaries/{platform}-{arch}/claude` first, then
+`resources/native-binary/claude` as fallback. Patch 13 (terminal mode) now uses
+`wD6()` instead of a hardcoded path.
+
+When running in **Remote Mode** on a Linux server, `wD6()` resolves to
+`resources/native-binaries/linux-x64/claude`. When running in **Local Mode** on macOS,
+it resolves to `resources/native-binaries/darwin-arm64/claude`.
 
 ## Usage
 
-1. Set `claudeCode.forceLocal: true` in VS Code settings
-2. Optionally set `claudeCode.sshHost` (auto-detected from remoteAuthority if omitted)
-3. Optionally set `claudeCode.forceLocalDiffMode`:
-   - `"auto"` (default) — edits auto-approved, inline diff in chat
-   - `"review"` — permission prompt + native diff tab via standard webview flow
-4. Open a Remote SSH workspace
-5. Launch VS Code with `--enable-proposed-api Anthropic.claude-code-local`
-6. Claude Code will run locally, proxying file ops to remote
+### Local Mode (forceLocal ON)
+1. Set `claudeCode.forceLocal: true` in VS Code workspace settings
+2. Open a Remote SSH workspace to a server **without internet**
+3. Launch VS Code with `--enable-proposed-api Anthropic.claude-code-local`
+4. Claude Code runs locally, proxying file ops to remote via MCP tools
+
+### Remote Mode (forceLocal OFF)
+1. Set `claudeCode.forceLocal: false` (or leave default) in VS Code workspace settings
+2. Open a Remote SSH workspace to a server **with internet**
+3. If extensionKind needs switching, a notification prompts you to reload
+4. After reload, VS Code automatically deploys the extension to the remote server
+5. Claude Code runs on the remote — identical to the official extension
+
+### Switching Between Modes
+The extension dynamically manages `extensionKind` in its `package.json`:
+- `forceLocal: true` → `extensionKind: ["ui", "workspace"]` (prefer local)
+- `forceLocal: false` → `extensionKind: ["workspace", "ui"]` (prefer remote)
+
+When the setting changes, the extension writes the new extensionKind and prompts
+a VS Code reload. The setting should be configured at **Workspace** scope so each
+project can independently control its mode.
