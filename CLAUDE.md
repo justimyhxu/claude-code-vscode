@@ -211,21 +211,26 @@ launcher `UA6()` uses a `Pseudoterminal` backed by **node-pty** (VS Code's bundl
 The terminal CLI discovers MCP tools via the **WebSocket server** (Patch 4) through
 lock file at `~/.claude/{PORT}.lock`, NOT the in-process server (Patch 8).
 
-### Patch 14: `NA6()` — remote connection guidance when forceLocal OFF (~line 74255)
-Because `extensionKind: ["ui", "workspace"]` makes the extension always run on the
-UI/local side, connecting to a remote server with `forceLocal: false` causes ENOENT
-errors (CLI tries to access remote paths like `/robby/...` on the local Mac).
-This is a fundamental `extensionKind` limitation — it cannot be changed at runtime.
+### Patch 14: `NA6()` — dynamic extensionKind switching (~line 74255)
+`extensionKind` is a static manifest property that determines where the extension runs:
+`["ui", "workspace"]` = prefer local, `["workspace", "ui"]` = prefer remote.
+Force-local mode needs the extension on the local/UI side; standard remote mode needs
+it on the workspace/remote side.
 
-**Fix**: At activation time, detect remote connection (`remoteAuthority`, `remoteName`,
-or non-`file` workspace URI scheme). If remote is detected and `forceLocal` is OFF,
-show a warning notification with two options:
-- **"Enable Force Local"** — enables forceLocal at workspace level, prompts reload
-- **"Disable This Extension"** — opens Extensions view, suggests using official extension
+**Fix**: At activation time, read the `forceLocal` setting and compare against the
+current `extensionKind` in the extension's `package.json`:
+- `forceLocal: true` → extensionKind should be `["ui", "workspace"]`
+- `forceLocal: false` → extensionKind should be `["workspace", "ui"]`
 
-Users who want standard remote behavior (CLI runs on remote server with internet)
-should use the official `claude-code` extension instead — it has `extensionKind:
-["workspace"]` and runs entirely on the remote side.
+If they don't match, rewrite `package.json` and prompt the user to reload. Also
+watches `onDidChangeConfiguration` for runtime `forceLocal` changes — if the user
+toggles the setting in VS Code preferences, it updates `package.json` and prompts
+reload immediately.
+
+This means a single extension handles both scenarios:
+- **forceLocal ON** → extension runs locally, CLI locally, MCP proxy to remote
+- **forceLocal OFF** → extension runs on remote (like official), CLI on remote,
+  standard behavior (remote server needs internet)
 
 ## src/remote-tools.js — Architecture
 

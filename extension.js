@@ -74253,48 +74253,62 @@ function NA6(v) {
         log: !0
     });
     v.subscriptions.push(z), L6.commands.executeCommand("setContext", "claude-vscode.updateSupported", !1);
-    // --- forceLocal: guide user when remote detected but forceLocal is OFF ---
-    // This extension (claude-code-local) always runs on the UI/local side due to extensionKind: ["ui", "workspace"].
-    // When connected to a remote server with forceLocal OFF, the CLI would try to access remote paths locally → ENOENT.
-    // We cannot switch extensionKind at runtime, so present the user with clear options.
-    (function _checkForceLocalRemoteGuide() {
+    // --- forceLocal: dynamic extensionKind switching ---
+    // When forceLocal is ON, extensionKind should be ["ui", "workspace"] (run locally).
+    // When forceLocal is OFF, extensionKind should be ["workspace", "ui"] (run on remote like official).
+    // Since extensionKind is a static manifest property, we modify package.json and prompt reload.
+    (function _syncExtensionKind() {
         var _vsc = L6;
+        var _fs = require("fs");
+        var _path = require("path");
         var _cfg = _vsc.workspace.getConfiguration("claudeCode");
         var _forceLocal = _cfg.get("forceLocal", false);
-        if (_forceLocal) return; // already enabled, nothing to do
-        // Detect remote connection
-        var _isRemote = false;
-        if (_vsc.env.remoteAuthority) _isRemote = true;
-        else if (_vsc.env.remoteName) _isRemote = true;
-        else {
-            var _folders = _vsc.workspace.workspaceFolders;
-            if (_folders && _folders.length > 0 && _folders[0].uri.scheme !== "file") _isRemote = true;
-        }
-        if (!_isRemote) return; // local workspace, no action needed
-        // Remote detected but forceLocal is OFF — guide user
-        z.info("forceLocal: remote connection detected but forceLocal is OFF. This extension runs locally and cannot use the remote CLI without Force Local mode.");
-        _vsc.window.showWarningMessage(
-            "Claude Code Local detected a remote connection, but Force Local mode is OFF. " +
-            "This extension always runs locally — without Force Local, file operations will fail. " +
-            "If the remote server has internet, use the official Claude Code extension instead.",
-            "Enable Force Local", "Disable This Extension"
-        ).then(function(choice) {
-            if (choice === "Enable Force Local") {
-                _cfg.update("forceLocal", true, _vsc.ConfigurationTarget.Workspace).then(function() {
-                    _vsc.window.showInformationMessage(
-                        "Force Local mode enabled for this workspace. Please reload the window.",
-                        "Reload"
-                    ).then(function(r) {
-                        if (r === "Reload") _vsc.commands.executeCommand("workbench.action.reloadWindow");
-                    });
-                });
-            } else if (choice === "Disable This Extension") {
-                _vsc.commands.executeCommand("workbench.action.openExtensionsView");
+        var _pkgPath = _path.join(v.extensionPath, "package.json");
+        try {
+            var _pkg = JSON.parse(_fs.readFileSync(_pkgPath, "utf8"));
+            var _current = JSON.stringify(_pkg.extensionKind || []);
+            var _desired = _forceLocal ? '["ui","workspace"]' : '["workspace","ui"]';
+            if (_current !== _desired) {
+                _pkg.extensionKind = _forceLocal ? ["ui", "workspace"] : ["workspace", "ui"];
+                _fs.writeFileSync(_pkgPath, JSON.stringify(_pkg, null, 2) + "\n", "utf8");
+                z.info("forceLocal: extensionKind updated to " + _desired + " (was " + _current + "). Reload needed.");
                 _vsc.window.showInformationMessage(
-                    "Disable 'Claude Code Local' and install/enable the official 'Claude Code' extension for remote servers with internet."
-                );
+                    "Claude Code Local: extensionKind switched to " +
+                    (_forceLocal ? "local (ui)" : "remote (workspace)") +
+                    " mode. Please reload the window for the change to take effect.",
+                    "Reload"
+                ).then(function(choice) {
+                    if (choice === "Reload") _vsc.commands.executeCommand("workbench.action.reloadWindow");
+                });
             }
-        });
+        } catch (_e) {
+            z.warn("forceLocal: failed to sync extensionKind:", _e.message || _e);
+        }
+        // Also watch for forceLocal setting changes at runtime
+        v.subscriptions.push(_vsc.workspace.onDidChangeConfiguration(function($) {
+            if (!$.affectsConfiguration("claudeCode.forceLocal")) return;
+            var _newForceLocal = _vsc.workspace.getConfiguration("claudeCode").get("forceLocal", false);
+            try {
+                var _pkg2 = JSON.parse(_fs.readFileSync(_pkgPath, "utf8"));
+                var _cur2 = JSON.stringify(_pkg2.extensionKind || []);
+                var _des2 = _newForceLocal ? '["ui","workspace"]' : '["workspace","ui"]';
+                if (_cur2 !== _des2) {
+                    _pkg2.extensionKind = _newForceLocal ? ["ui", "workspace"] : ["workspace", "ui"];
+                    _fs.writeFileSync(_pkgPath, JSON.stringify(_pkg2, null, 2) + "\n", "utf8");
+                    z.info("forceLocal: setting changed, extensionKind updated to " + _des2 + ". Prompting reload.");
+                    _vsc.window.showInformationMessage(
+                        "Claude Code Local: Force Local mode " + (_newForceLocal ? "enabled" : "disabled") +
+                        ". Reload required to switch extension to " +
+                        (_newForceLocal ? "local (ui)" : "remote (workspace)") + " mode.",
+                        "Reload Now"
+                    ).then(function(choice) {
+                        if (choice === "Reload Now") _vsc.commands.executeCommand("workbench.action.reloadWindow");
+                    });
+                }
+            } catch (_e2) {
+                z.warn("forceLocal: failed to update extensionKind on setting change:", _e2.message || _e2);
+            }
+        }));
     })();
     let U = new P2(v);
     U.migrateAllSettings(), v.subscriptions.push(L6.workspace.onDidChangeConfiguration(($) => {
