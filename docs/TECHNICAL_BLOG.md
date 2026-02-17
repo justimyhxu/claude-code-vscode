@@ -1,6 +1,6 @@
 # Patching Claude Code VS Code for Offline Remote Servers: A Developer's Journey
 
-*How 11 surgical patches and 587 lines of new code solved the "files here, internet there" problem.*
+*How 15 surgical patches and 587 lines of new code solved the "files here, internet there" problem — and then made the same extension work identically to the official one when the server has internet.*
 
 ## 1. The Problem: Why Force Local?
 
@@ -24,7 +24,7 @@ Claude Code's VS Code integration is not trivial. There is a React-based webview
 
 ### The Decision: Minimum Viable Diff
 
-The approach: make the *smallest possible set of changes* to the official extension. Eleven patches to `extension.js` (each precisely located in the beautified code), one new file (`src/remote-tools.js` at 587 lines), and a handful of `package.json` changes. Every patch is documented with the exact line number, the function it modifies, and why.
+The approach: make the *smallest possible set of changes* to the official extension. Fifteen patches to `extension.js` (each precisely located in the beautified code), one new file (`src/remote-tools.js` at 587 lines), and a handful of `package.json` changes. Every patch is documented with the exact line number, the function it modifies, and why.
 
 The philosophy is simple: every line changed is a line that must be re-applied when the upstream extension updates. Fewer lines means less maintenance.
 
@@ -370,12 +370,58 @@ The final patch set modifies remarkably few lines of `extension.js` relative to 
 
 Unit-testing individual MCP tools was straightforward. The real bugs only appeared when the full flow executed: CLI spawns, MCP tool is called, result flows through message transforms, webview renders, diff tab opens. Integration testing was not optional.
 
-## 8. What's Next
+## 8. v0.2: From Force-Local to Dual Mode
 
-The force-local mode is functional for daily use. The remaining items are quality-of-life improvements:
+The original project solved the "no internet" problem. But many developers SSH into servers that *do* have internet. For them, the official extension works perfectly — except they cannot install it because their VS Code extension store only has the patched extension.
+
+### The Dual-Mode Insight
+
+Rather than maintaining two extensions, v0.2 makes the patched extension work in **both** scenarios via a single `forceLocal` toggle:
+
+| `forceLocal` | `extensionKind` | Extension Runs | CLI Runs |
+|---|---|---|---|
+| `true` | `["ui", "workspace"]` | Local (macOS) | Local (macOS) |
+| `false` | `["workspace", "ui"]` | Remote (Linux) | Remote (Linux) |
+
+When `forceLocal` is OFF and you're connected to a remote server, the extension behaves **100% identically** to the official Claude Code extension. All 15 patches are gated by `isForceLocalMode()`, which returns `false` — zero code paths diverge.
+
+### Multi-Platform Binaries
+
+The extension now bundles CLI binaries for both platforms:
+- `resources/native-binaries/darwin-arm64/claude` (175MB, macOS ARM64)
+- `resources/native-binaries/linux-x64/claude` (213MB, Linux x86-64)
+
+The official `wD6()` binary lookup function already supports this directory structure — it checks `native-binaries/{platform}-{arch}/` before falling back to `native-binary/`. The Linux binary was extracted from the official Linux VSIX on the VS Code marketplace.
+
+### Dynamic extensionKind Switching
+
+`extensionKind` is a static manifest property — VS Code reads it once at load time to decide where to run the extension. Changing it requires modifying the installed extension's `package.json` and reloading. The extension does this automatically:
+
+1. At activation, detect if in a remote environment (`remoteAuthority`, `remoteName`, workspace folder scheme)
+2. Compute the desired `extensionKind` based on `forceLocal` + `isRemote`
+3. If the installed `package.json` doesn't match, rewrite it and prompt reload
+
+A subtle bug emerged: the initial implementation only checked `forceLocal`, not whether we were in a remote environment. This meant local workspaces with `forceLocal: false` got `extensionKind: ["workspace", "ui"]` — unnecessary and confusing (VS Code showed a "workspace" badge). The fix: local workspaces always get `["ui", "workspace"]`, regardless of `forceLocal`.
+
+### The Mode Badge
+
+To make the execution mode visible, the webview now shows a small badge:
+- **Remote + forceLocal ON**: "UI" badge (extension runs locally)
+- **Remote + forceLocal OFF**: "Workspace" badge (extension runs on remote)
+- **Local workspace**: no badge (no ambiguity)
+
+The badge is injected via a script in the webview HTML, using a `MutationObserver` to re-inject after React re-renders. Two variables control it: `FORCE_LOCAL_MODE` (from `isForceLocalMode()`) and `IS_REMOTE_ENV` (remote detection independent of forceLocal).
+
+### Config Listener Debounce
+
+VS Code fires `onDidChangeConfiguration` multiple times when a setting changes (once per scope — User, Remote, Workspace). Without debounce, the extensionKind would flip-flop: first event switches to `["workspace", "ui"]`, second event 600ms later switches back. Fix: 500ms debounce + value deduplication.
+
+## 9. What's Next
+
+The dual-mode extension is functional for daily use. Remaining items:
 
 - **Auto-detection**: Detecting that the remote server lacks internet and suggesting force-local mode automatically, rather than requiring manual configuration.
-- **Multi-platform binaries**: Currently only macOS ARM64 is supported (the original extension's CLI binary). Supporting Linux local machines would widen the user base.
+- **More platforms**: Linux ARM64, macOS x64, Windows — expanding the supported combinations.
 - **Upstream contribution**: The cleanest outcome would be contributing the force-local concept upstream to Anthropic's official extension. The architectural pattern (MCP tool proxying via `vscode.workspace.fs`) is general enough to work without patches.
 
 The force-local approach demonstrates a broader pattern: when two environments each have something the other lacks, the solution is not to move everything to one side, but to build a bridge that lets each side do what it does best. The local machine thinks; the remote server stores. VS Code's Remote SSH is the bridge. MCP is the protocol.
@@ -384,7 +430,7 @@ The force-local approach demonstrates a broader pattern: when two environments e
 
 # Claude Code VS Code "Force Local" 深度技术剖析：一个开发者的逆向工程之旅
 
-*11 处精准补丁 + 587 行新代码，解决"文件在那边，网络在这边"的工程难题。*
+*15 处精准补丁 + 587 行新代码，解决"文件在那边，网络在这边"的工程难题——并让同一个扩展在服务器有网时与官方完全一致。*
 
 ## 1. 问题的本质：为什么需要 Force Local？
 
@@ -408,7 +454,7 @@ Claude Code 的 VS Code 集成并非轻量工作。React 编写的 webview 带�
 
 ### 最终决策：最小可行差异
 
-方案：对官方扩展做**尽可能少的改动**。`extension.js` 上的 11 处补丁（每一处在美化代码中都有精确行号定位），一个新文件（`src/remote-tools.js`，587 行），以及少量 `package.json` 修改。每个补丁都记录了准确的行号、修改的函数以及修改原因。
+方案：对官方扩展做**尽可能少的改动**。`extension.js` 上的 15 处补丁（每一处在美化代码中都有精确行号定位），一个新文件（`src/remote-tools.js`，587 行），以及少量 `package.json` 修改。每个补丁都记录了准确的行号、修改的函数以及修改原因。
 
 哲学很简单：每改一行就多一行在上游更新时需要重新应用的代码。改得越少，维护成本越低。
 
@@ -661,12 +707,56 @@ Review 模式的三次迭代教给我同一个教训：扩展内置的权限和 
 
 单独测试各 MCP 工具很直接。真正的 bug 只在完整流程执行时才出现：CLI 启动、MCP 工具被调用、结果经过消息转换、webview 渲染、diff 标签页打开。集成测试不是可选项。
 
-## 8. 展望
+## 8. v0.2：从 Force-Local 到双模式
 
-Force-local 模式已可用于日常工作。未来改进方向：
+原始项目解决了"无网络"的问题。但很多开发者 SSH 到的服务器**有**网络。对他们来说，官方扩展完美运行——只是他们的 VS Code 扩展商店里只有打补丁的版本。
 
-- **自动检测**：检测远程服务器无法访问互联网，自动建议开启 force-local 模式，无需手动配置。
-- **多平台二进制支持**：目前仅支持 macOS ARM64（原始扩展的 CLI 二进制）。支持 Linux 本地机器将扩大用户群。
+### 双模式方案
+
+v0.2 不再维护两个扩展，而是通过一个 `forceLocal` 开关让同一个扩展适用**两种**场景：
+
+| `forceLocal` | `extensionKind` | 扩展运行位置 | CLI 运行位置 |
+|---|---|---|---|
+| `true` | `["ui", "workspace"]` | 本地（macOS） | 本地（macOS） |
+| `false` | `["workspace", "ui"]` | 远程（Linux） | 远程（Linux） |
+
+当 `forceLocal` 关闭且连接远程服务器时，扩展行为与官方 Claude Code **100% 一致**。所有 15 个补丁都通过 `isForceLocalMode()` 守卫，返回 `false` 时零代码路径分歧。
+
+### 多平台二进制
+
+扩展现在打包两个平台的 CLI 二进制：
+- `resources/native-binaries/darwin-arm64/claude`（175MB，macOS ARM64）
+- `resources/native-binaries/linux-x64/claude`（213MB，Linux x86-64）
+
+官方的 `wD6()` 二进制查找函数已经支持这个目录结构。Linux 二进制从 VS Code 市场的官方 Linux VSIX 中提取。
+
+### 动态 extensionKind 切换
+
+`extensionKind` 是静态清单属性——VS Code 在加载时读取一次以决定扩展运行位置。修改需要重写已安装扩展的 `package.json` 并重新加载。扩展自动完成这个过程：
+
+1. 激活时检测是否在远程环境（`remoteAuthority`、`remoteName`、工作区文件夹 scheme）
+2. 根据 `forceLocal` + `isRemote` 计算期望的 `extensionKind`
+3. 如果已安装的 `package.json` 不匹配，重写并提示 reload
+
+一个细微的 bug：最初实现只检查 `forceLocal`，不检查是否在远程环境。导致本地工作区 `forceLocal: false` 时得到 `extensionKind: ["workspace", "ui"]`——不必要且令人困惑。修复：本地工作区始终使用 `["ui", "workspace"]`，不受 `forceLocal` 影响。
+
+### 模式徽章
+
+为了让执行模式可见，webview 现在显示一个小徽章：
+- **远程 + forceLocal ON**："UI" 徽章（扩展在本地运行）
+- **远程 + forceLocal OFF**："Workspace" 徽章（扩展在远程运行）
+- **本地工作区**：无徽章（无歧义）
+
+### 配置监听防抖
+
+VS Code 修改设置时会多次触发 `onDidChangeConfiguration`（每个作用域一次——User、Remote、Workspace）。不做防抖的话 extensionKind 会来回翻转。修复：500ms 防抖 + 值去重。
+
+## 9. 展望
+
+双模式扩展已可用于日常工作。未来改进方向：
+
+- **自动检测**：检测远程服务器无法访问互联网，自动建议开启 force-local 模式。
+- **更多平台**：Linux ARM64、macOS x64、Windows——扩展支持的平台组合。
 - **上游贡献**：最理想的结果是将 force-local 概念贡献给 Anthropic 的官方扩展。MCP 工具代理通过 `vscode.workspace.fs` 的架构模式足够通用，不需要补丁即可工作。
 
 Force-local 的方案展示了一个更广泛的模式：当两个环境各自拥有对方缺少的东西时，解决方案不是把所有东西搬到一边，而是搭建一座桥梁，让每一边做它最擅长的事。本地机器负责思考，远程服务器负责存储。VS Code 的 Remote SSH 是桥梁，MCP 是协议。

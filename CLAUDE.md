@@ -65,7 +65,7 @@ The Linux x64 CLI binary is used via the existing `wD6()` multi-platform lookup.
 | File | Role | Status |
 |------|------|--------|
 | `package.json` | Extension manifest, settings, extensionKind | Modified |
-| `extension.js` | Main extension (74k lines, minified then beautified) | 14 surgical patches |
+| `extension.js` | Main extension (74k lines, minified then beautified) | 15 surgical patches |
 | `src/remote-tools.js` | 6 MCP tools for remote file proxy | NEW file, ~587 lines |
 | `webview/index.js` | Webview React UI (minified) | Unchanged |
 | `webview/index.css` | Webview styles (minified) | Unchanged |
@@ -82,7 +82,7 @@ The Linux x64 CLI binary is used via the existing `wD6()` multi-platform lookup.
 - Settings: `claudeCode.forceLocal`, `claudeCode.sshHost`, `claudeCode.sshIdentityFile`,
   `claudeCode.sshExtraArgs`, `claudeCode.useSSHExec`, `claudeCode.forceLocalDiffMode`
 
-## extension.js Patches (14 total)
+## extension.js Patches (15 total)
 
 All patches operate on the beautified minified code. Key variable names:
 - `z6, WJ, g9, L6, M0` = various `vscode` module aliases
@@ -247,21 +247,30 @@ lock file at `~/.claude/{PORT}.lock`, NOT the in-process server (Patch 8).
 Force-local mode needs the extension on the local/UI side; standard remote mode needs
 it on the workspace/remote side.
 
-**Fix**: At activation time, read the `forceLocal` setting and compare against the
-current `extensionKind` in the extension's `package.json`:
-- `forceLocal: true` → extensionKind should be `["ui", "workspace"]`
-- `forceLocal: false` → extensionKind should be `["workspace", "ui"]`
+**Fix**: At activation time, detect if in a remote environment (`_isRemoteEnv()`:
+checks `vscode.env.remoteAuthority`, `remoteName`, `sshHost` setting, workspace folder
+scheme). Then compute desired extensionKind via `_computeDesired(forceLocal, isRemote)`:
+- Local workspace (no remote) → always `["ui", "workspace"]`, regardless of forceLocal
+- Remote + forceLocal ON → `["ui", "workspace"]` (run locally, proxy to remote)
+- Remote + forceLocal OFF → `["workspace", "ui"]` (run on remote, like official)
 
-If they don't match, rewrite `package.json` and prompt the user to reload. Also
-watches `onDidChangeConfiguration` for runtime `forceLocal` changes (debounced at
-500ms with value deduplication to prevent flip-flop when VS Code fires config change
-events for multiple scopes) — if the user toggles the setting, it updates `package.json`
-and prompts reload immediately.
+If the installed `package.json` doesn't match the desired value, rewrite it and prompt
+the user to reload. Also watches `onDidChangeConfiguration` for runtime `forceLocal`
+changes (debounced at 500ms with value deduplication to prevent flip-flop when VS Code
+fires config change events for multiple scopes).
 
-This means a single extension handles both scenarios:
-- **forceLocal ON** → extension runs locally, CLI locally, MCP proxy to remote
-- **forceLocal OFF** → extension runs on remote (like official), CLI on remote,
-  standard behavior (remote server needs internet)
+### Patch 15: Webview mode badge (~line 71580)
+Injects a CSS-styled badge next to the "New session" button in the webview header.
+Shows the current extension execution location:
+
+- **No badge** — local workspace (no remote, badge hidden via `IS_REMOTE_ENV=false`)
+- **"UI" badge** — remote + forceLocal ON (extension runs locally)
+- **"Workspace" badge** — remote + forceLocal OFF (extension runs on remote)
+
+Two variables are injected into the webview: `FORCE_LOCAL_MODE` (from `isForceLocalMode()`)
+and `IS_REMOTE_ENV` (detected from `remoteAuthority`, `remoteName`, workspace folder
+scheme). The badge is only rendered when `IS_REMOTE_ENV` is true. A `MutationObserver`
+watches the DOM and re-injects the badge when the webview re-renders.
 
 ## src/remote-tools.js — Architecture
 
@@ -399,6 +408,22 @@ The `_adaptMcpEvent()` helper converts MCP events to native-format events:
       node-pty creates a proper PTY with correct terminal attributes (ONLCR preserved),
       proper resize via `ptyProc.resize()` (TIOCSWINSZ + SIGWINCH), and env vars
       `COLORTERM=truecolor` + `FORCE_COLOR=3` for 24-bit color. Python pty kept as fallback.
+
+11. **extensionKind wrongly set to `["workspace","ui"]` on local workspaces + badge showing "Workspace"**
+    - Root cause 1: `_syncExtensionKind()` only checked `forceLocal` setting without detecting
+      if in a remote environment. Local + `forceLocal=false` → extensionKind set to
+      `["workspace","ui"]`, unnecessary and confusing.
+    - Root cause 2: Webview badge injection used `FORCE_LOCAL_MODE=false → "Workspace"` text
+      without checking if actually in a remote environment. Local workspaces showed "Workspace".
+    - Fix 1: Added `_isRemoteEnv()` check. Only set `["workspace","ui"]` when remote AND
+      forceLocal OFF. Local workspaces always get `["ui","workspace"]`.
+    - Fix 2: Added `IS_REMOTE_ENV` variable to webview. Badge only shown when remote.
+
+12. **Node proxy references to non-existent `src/node-proxy.js`**
+    - Root cause: Four `require("./src/node-proxy")` calls in extension.js for a CONNECT
+      proxy feature that was designed but never implemented. Caused silent errors.
+    - Fix: Removed all four references (spawnClaude, terminal mode node-pty path,
+      terminal mode Python fallback path, terminal mode early start).
 
 ## Progress
 

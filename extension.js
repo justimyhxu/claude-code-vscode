@@ -70524,23 +70524,6 @@ class IJ extends S2 {
         q.pathToClaudeCodeExecutable = H, q.executableArgs = D, q.env = Z;
         // Prevent "nested session" detection when another Claude Code instance is running
         delete q.env.CLAUDECODE;
-        // --- Node proxy: route CLI traffic through VS Code's node process ---
-        // Enterprise security (Starpoint) recognizes "node" (softwareid) but may intercept
-        // "claude" binary. Routing through a local CONNECT proxy in the node process ensures
-        // all outbound traffic originates from the whitelisted "node" process.
-        try {
-            var _nodeProxy = require("./src/node-proxy");
-            var _npPort = await _nodeProxy.ensureStarted({
-                env: q.env,
-                log: (msg) => this.output.info(msg)
-            });
-            if (_npPort) {
-                _nodeProxy.applyToEnv(q.env);
-                this.output.info("nodeProxy: CLI traffic routing through node process on port " + _npPort);
-            }
-        } catch (_npErr) {
-            this.output.warn("nodeProxy: failed to start: " + (_npErr.message || _npErr));
-        }
         let $ = "2.1.42";
         return this.output.info(`Spawning Claude with SDK query function - cwd: ${q.cwd}, permission mode: ${K}, version: ${$}, ${q.pathToClaudeCodeExecutable}, resume: ${z}`), nK({
             prompt: v,
@@ -71595,10 +71578,11 @@ class WF {
           }
           window.IS_SIDEBAR = ${V?"true":"false"}
           window.FORCE_LOCAL_MODE = ${isForceLocalMode()?"true":"false"}
+          window.IS_REMOTE_ENV = ${(function(){var _v=require("vscode");return !!(_v.env.remoteAuthority||_v.env.remoteName||(_v.workspace.workspaceFolders&&_v.workspace.workspaceFolders.length>0&&_v.workspace.workspaceFolders[0].uri.scheme!=="file"))})()?"true":"false"}
         </script>
         <script nonce="${B}">
           (function() {
-            if (typeof window.FORCE_LOCAL_MODE === 'undefined') return;
+            if (!window.IS_REMOTE_ENV) return;
             var badgeText = window.FORCE_LOCAL_MODE ? 'UI' : 'Workspace';
             var BADGE_ID = '__force-local-badge';
             function injectBadge() {
@@ -73872,12 +73856,6 @@ async function UA6(v, z, U = !0, V, N = [], K) {
         var _flCwd = getForceLocalCwd();
         var _flCliPath = wD6(z) || Si.join(z.extensionPath, "resources", "native-binary", "claude");
 
-        // Start node proxy early so it's ready when open() is called
-        try {
-            var _flNodeProxy = require("./src/node-proxy");
-            _flNodeProxy.ensureStarted({ env: process.env, log: (msg) => v.info(msg) });
-        } catch (_) {}
-
         // Build CLI args: disallowed + allowed tools (MUST be space-separated, not comma)
         var _flCliArgs = [...N,
             "--disallowed-tools", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep", "Bash", "NotebookEdit"
@@ -73920,9 +73898,6 @@ async function UA6(v, z, U = !0, V, N = [], K) {
                     _env.TERM = "xterm-256color";
                     _env.COLORTERM = "truecolor";
                     _env.FORCE_COLOR = "3";
-                    // Route CLI traffic through node proxy (Starpoint bypass)
-                    try { require("./src/node-proxy").applyToEnv(_env); } catch(_) {}
-
                     _flPtyProc = _flNodePty.spawn(_flCliPath, _flCliArgs, {
                         name: "xterm-256color",
                         cols: dims ? dims.columns : 120,
@@ -74030,8 +74005,6 @@ else:
                     _env.TERM = "xterm-256color";
                     _env.COLORTERM = "truecolor";
                     _env.FORCE_COLOR = "3";
-                    // Route CLI traffic through node proxy (Starpoint bypass)
-                    try { require("./src/node-proxy").applyToEnv(_env); } catch(_) {}
                     if (dims) {
                         _env.COLUMNS = String(dims.columns);
                         _env.LINES = String(dims.rows);
@@ -74281,8 +74254,10 @@ function NA6(v) {
     });
     v.subscriptions.push(z), L6.commands.executeCommand("setContext", "claude-vscode.updateSupported", !1);
     // --- forceLocal: dynamic extensionKind switching ---
-    // When forceLocal is ON, extensionKind should be ["ui", "workspace"] (run locally).
-    // When forceLocal is OFF, extensionKind should be ["workspace", "ui"] (run on remote like official).
+    // Rules:
+    //   Local workspace (no remote) → always ["ui","workspace"], forceLocal is irrelevant
+    //   Remote + forceLocal ON  → ["ui","workspace"]  (run locally, proxy to remote)
+    //   Remote + forceLocal OFF → ["workspace","ui"]   (run on remote, like official)
     // Since extensionKind is a static manifest property, we modify package.json and prompt reload.
     (function _syncExtensionKind() {
         var _vsc = L6;
@@ -74291,17 +74266,33 @@ function NA6(v) {
         var _cfg = _vsc.workspace.getConfiguration("claudeCode");
         var _forceLocal = _cfg.get("forceLocal", false);
         var _pkgPath = _path.join(v.extensionPath, "package.json");
+        // Detect if we are in a remote environment
+        function _isRemoteEnv() {
+            if (_vsc.env.remoteAuthority) return true;
+            if (_vsc.env.remoteName) return true;
+            if (_cfg.get("sshHost", "")) return true;
+            var _folders = _vsc.workspace.workspaceFolders;
+            if (_folders && _folders.length > 0 && _folders[0].uri.scheme !== "file") return true;
+            return false;
+        }
+        function _computeDesired(forceLocal, isRemote) {
+            // Only use ["workspace","ui"] when remote AND forceLocal OFF
+            if (isRemote && !forceLocal) return ["workspace", "ui"];
+            return ["ui", "workspace"];
+        }
+        var _isRemote = _isRemoteEnv();
+        var _desiredArr = _computeDesired(_forceLocal, _isRemote);
+        var _desired = JSON.stringify(_desiredArr);
         try {
             var _pkg = JSON.parse(_fs.readFileSync(_pkgPath, "utf8"));
             var _current = JSON.stringify(_pkg.extensionKind || []);
-            var _desired = _forceLocal ? '["ui","workspace"]' : '["workspace","ui"]';
             if (_current !== _desired) {
-                _pkg.extensionKind = _forceLocal ? ["ui", "workspace"] : ["workspace", "ui"];
+                _pkg.extensionKind = _desiredArr;
                 _fs.writeFileSync(_pkgPath, JSON.stringify(_pkg, null, 2) + "\n", "utf8");
-                z.info("forceLocal: extensionKind updated to " + _desired + " (was " + _current + "). Reload needed.");
+                z.info("forceLocal: extensionKind updated to " + _desired + " (was " + _current + ", isRemote=" + _isRemote + "). Reload needed.");
                 _vsc.window.showInformationMessage(
                     "Claude Code Local: extensionKind switched to " +
-                    (_forceLocal ? "local (ui)" : "remote (workspace)") +
+                    (_desiredArr[0] === "ui" ? "local (ui)" : "remote (workspace)") +
                     " mode. Please reload the window for the change to take effect.",
                     "Reload"
                 ).then(function(choice) {
@@ -74322,18 +74313,20 @@ function NA6(v) {
                 var _newForceLocal = _vsc.workspace.getConfiguration("claudeCode").get("forceLocal", false);
                 if (_newForceLocal === _lastForceLocal) return;
                 _lastForceLocal = _newForceLocal;
+                var _rem = _isRemoteEnv();
+                var _desArr = _computeDesired(_newForceLocal, _rem);
+                var _desStr = JSON.stringify(_desArr);
                 try {
                     var _pkg2 = JSON.parse(_fs.readFileSync(_pkgPath, "utf8"));
                     var _cur2 = JSON.stringify(_pkg2.extensionKind || []);
-                    var _des2 = _newForceLocal ? '["ui","workspace"]' : '["workspace","ui"]';
-                    if (_cur2 !== _des2) {
-                        _pkg2.extensionKind = _newForceLocal ? ["ui", "workspace"] : ["workspace", "ui"];
+                    if (_cur2 !== _desStr) {
+                        _pkg2.extensionKind = _desArr;
                         _fs.writeFileSync(_pkgPath, JSON.stringify(_pkg2, null, 2) + "\n", "utf8");
-                        z.info("forceLocal: setting changed, extensionKind updated to " + _des2 + ". Prompting reload.");
+                        z.info("forceLocal: setting changed, extensionKind updated to " + _desStr + " (isRemote=" + _rem + "). Prompting reload.");
                         _vsc.window.showInformationMessage(
                             "Claude Code Local: Force Local mode " + (_newForceLocal ? "enabled" : "disabled") +
                             ". Reload required to switch extension to " +
-                            (_newForceLocal ? "local (ui)" : "remote (workspace)") + " mode.",
+                            (_desArr[0] === "ui" ? "local (ui)" : "remote (workspace)") + " mode.",
                             "Reload Now"
                         ).then(function(choice) {
                             if (choice === "Reload Now") _vsc.commands.executeCommand("workbench.action.reloadWindow");

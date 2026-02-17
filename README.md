@@ -51,7 +51,7 @@ LOCAL MACHINE                             REMOTE SERVER (has internet + files)
 Everything runs on the remote server -- identical to official Claude Code.
 ```
 
-- The extension behaves **100% identically** to the official Claude Code extension. All 14 patches are gated by `isForceLocalMode()` and have zero effect.
+- The extension behaves **100% identically** to the official Claude Code extension. All 15 patches are gated by `isForceLocalMode()` and have zero effect.
 - The Linux x64 CLI binary is bundled and auto-selected.
 - Set `forceLocal: false` (or leave as default) in **Workspace** settings.
 
@@ -59,14 +59,29 @@ Everything runs on the remote server -- identical to official Claude Code.
 
 The extension dynamically manages `extensionKind` in its `package.json`:
 
-| `forceLocal` | `extensionKind` | Effect |
-|---|---|---|
-| `true` | `["ui", "workspace"]` | VS Code runs extension on **local/UI side** |
-| `false` | `["workspace", "ui"]` | VS Code deploys extension to **remote server** |
+| Environment | `forceLocal` | `extensionKind` | Effect |
+|---|---|---|---|
+| **Local workspace** | any | `["ui", "workspace"]` | Always local — no switching needed |
+| **Remote** | `true` | `["ui", "workspace"]` | VS Code runs extension on **local/UI side** |
+| **Remote** | `false` | `["workspace", "ui"]` | VS Code deploys extension to **remote server** |
 
-When you change `forceLocal`, the extension updates `extensionKind` and prompts a VS Code **Reload**. After reload, VS Code reads the new `extensionKind` and runs the extension in the correct location.
+When you change `forceLocal` in a **remote** context, the extension updates `extensionKind` and prompts a VS Code **Reload**. After reload, VS Code reads the new `extensionKind` and runs the extension in the correct location.
+
+For **local workspaces** (no remote connection), `extensionKind` is always `["ui", "workspace"]` regardless of the `forceLocal` setting — no switching or reload needed.
 
 **Important**: Set `forceLocal` at the **Workspace** scope (`Cmd+,` -> Workspace tab) so each project controls its own mode independently.
+
+### Mode Badge Indicator
+
+In remote environments, a small badge appears next to the "New session" button in the Claude Code panel header:
+
+| Badge | Meaning |
+|-------|---------|
+| **UI** | Remote + forceLocal ON — extension runs **locally**, file ops proxied to remote |
+| **Workspace** | Remote + forceLocal OFF — extension runs on **remote server** |
+| *(no badge)* | Local workspace — no mode indicator needed |
+
+The badge helps you quickly verify where the extension is actually running.
 
 ---
 
@@ -335,7 +350,7 @@ VS Code Remote SSH maintains an authenticated, multiplexed SSH connection. `vsco
 
 ### Why Monkey-Patch?
 
-The extension ships as a single minified file. This project applies **14 surgical patches** at specific function boundaries. The only wholly new code is `src/remote-tools.js` (~587 lines).
+The extension ships as a single minified file. This project applies **15 surgical patches** at specific function boundaries. The only wholly new code is `src/remote-tools.js` (~587 lines).
 
 ## Known Limitations
 
@@ -353,7 +368,7 @@ The extension ships as a single minified file. This project applies **14 surgica
 ```
 claude-code-vscode/
 |-- package.json                    # Extension manifest (modified)
-|-- extension.js                    # Main extension (14 surgical patches)
+|-- extension.js                    # Main extension (15 surgical patches)
 |-- src/
 |   '-- remote-tools.js            # 6 MCP proxy tools (NEW, ~587 lines)
 |-- webview/
@@ -442,14 +457,29 @@ CLI 使用本地网络调用 Anthropic API。
 
 扩展动态管理 `package.json` 中的 `extensionKind`：
 
-| `forceLocal` | `extensionKind` | 效果 |
-|---|---|---|
-| `true` | `["ui", "workspace"]` | VS Code 在**本地/UI 侧**运行扩展 |
-| `false` | `["workspace", "ui"]` | VS Code 将扩展部署到**远程服务器** |
+| 环境 | `forceLocal` | `extensionKind` | 效果 |
+|---|---|---|---|
+| **本地工作区** | 任意 | `["ui", "workspace"]` | 始终本地运行 — 无需切换 |
+| **远程** | `true` | `["ui", "workspace"]` | VS Code 在**本地/UI 侧**运行扩展 |
+| **远程** | `false` | `["workspace", "ui"]` | VS Code 将扩展部署到**远程服务器** |
 
-当你修改 `forceLocal` 时，扩展更新 `extensionKind` 并提示 VS Code **Reload**。Reload 后，VS Code 读取新的 `extensionKind` 并在正确的位置运行扩展。
+在**远程**环境中修改 `forceLocal` 时，扩展更新 `extensionKind` 并提示 VS Code **Reload**。Reload 后，VS Code 读取新的 `extensionKind` 并在正确的位置运行扩展。
+
+对于**本地工作区**（无远程连接），`extensionKind` 始终为 `["ui", "workspace"]`，不受 `forceLocal` 设置影响——无需切换或 Reload。
 
 **重要**：在**工作区**级别（`Cmd+,` -> 工作区 标签页）设置 `forceLocal`，这样每个项目可以独立控制自己的模式。
+
+### 模式标识徽章
+
+在远程环境中，Claude Code 面板标题栏的"New session"按钮旁会显示一个小徽章：
+
+| 徽章 | 含义 |
+|------|------|
+| **UI** | 远程 + forceLocal ON — 扩展在**本地**运行，文件操作代理到远程 |
+| **Workspace** | 远程 + forceLocal OFF — 扩展在**远程服务器**运行 |
+| *（无徽章）* | 本地工作区 — 无需模式标识 |
+
+徽章帮助你快速确认扩展的实际运行位置。
 
 ---
 
