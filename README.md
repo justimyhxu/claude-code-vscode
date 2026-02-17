@@ -189,21 +189,57 @@ cd /tmp/vsix-build && zip -r /tmp/claude-code-local.vsix .
 code --install-extension /tmp/claude-code-local.vsix
 ```
 
-### Step 4: Configure the VS Code Launch Flag
+### Step 4: Enable the Proposed API Flag
 
-Add `--enable-proposed-api Anthropic.claude-code-local` to your VS Code launch command. The method depends on how you launch VS Code:
+The extension uses the `resolvers` proposed API for FileSystemProvider registration on the UI side. You must enable it via one of the methods below.
 
-**macOS (command line):**
+**Method A: Modify `argv.json` (Recommended -- works with app icon click)**
+
+This method makes the flag permanent. VS Code will always launch with it, whether you open it from the Dock, Finder, Spotlight, or command line.
+
+1. Open VS Code
+2. Press `Cmd+Shift+P` -> type "Configure Runtime Arguments" -> select it
+3. This opens `~/.vscode/argv.json`. Add the `enable-proposed-api` key:
+
+```jsonc
+{
+    // ... existing keys ...
+    "enable-proposed-api": ["Anthropic.claude-code-local"]
+}
+```
+
+4. Save the file and **restart VS Code**.
+
+Or do it from the terminal:
+
+```bash
+# If argv.json doesn't exist yet, create it
+# If it exists, you need to manually add the key to the existing JSON
+python3 -c "
+import json, os
+p = os.path.expanduser('~/.vscode/argv.json')
+d = {}
+if os.path.exists(p):
+    # Strip comments (// style) before parsing
+    lines = [l for l in open(p).readlines() if not l.strip().startswith('//')]
+    d = json.loads(''.join(lines))
+d['enable-proposed-api'] = ['Anthropic.claude-code-local']
+open(p,'w').write(json.dumps(d, indent=4) + '\n')
+print('Done. Restart VS Code for changes to take effect.')
+"
+```
+
+**Method B: Command line flag (per-launch)**
+
 ```bash
 code --enable-proposed-api Anthropic.claude-code-local
 ```
 
-**macOS (alias in shell profile):**
+**Method B (alias):** Add to your `~/.zshrc` or `~/.bashrc`:
+
 ```bash
 alias code='code --enable-proposed-api Anthropic.claude-code-local'
 ```
-
-This flag is required because the extension uses the `resolvers` proposed API for FileSystemProvider registration on the UI side.
 
 ### Step 5: Rebuild After Changes
 
@@ -222,25 +258,48 @@ cd /tmp/vsix-build && zip -r /tmp/claude-code-local.vsix . && code --install-ext
 
 All settings are under the `claudeCode` namespace in VS Code settings.
 
-### Force Local Settings
+### Key Settings
+
+#### `claudeCode.forceLocal` (boolean, default: `false`)
+
+**The main switch.** Set to `true` to enable Force Local mode. When enabled:
+
+- The extension host and CLI binary run on your **local machine** (with internet access for API calls).
+- All file operations (read, write, edit, glob, grep, bash) are **proxied to the remote server** through VS Code's Remote SSH connection.
+- The CLI's 8 built-in file tools are disabled and replaced by 6 MCP proxy tools.
+
+This setting only takes effect when VS Code is connected to a remote server via SSH. On a purely local workspace, it has no effect.
+
+#### `claudeCode.forceLocalDiffMode` (string, default: `"auto"`)
+
+Controls how Claude's file edits are presented to you. Two modes:
+
+| Mode | Behavior |
+|------|----------|
+| `"auto"` | Edits are **auto-approved** and applied immediately to the remote file. An inline diff (red/green highlighting) is shown in the chat webview. This is the fastest workflow -- identical to the official extension's default behavior. |
+| `"review"` | Before each edit or write, a **VS Code diff tab** opens with the old content on the left and proposed new content on the right. You can **modify the proposed content** in the right-side editor before accepting. Click **Accept** to write, **Reject** or close the tab to cancel. Automatically bypassed when permission mode is `bypassPermissions` or `acceptEdits`. |
+
+**Recommendation**: Start with `"auto"` for fast iteration. Switch to `"review"` when working on production code or when you want to inspect and modify each change before it is written.
+
+### SSH Settings (Optional)
+
+These settings are for advanced SSH configuration. Most users do not need to change them -- the defaults work with standard VS Code Remote SSH setups.
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `claudeCode.forceLocal` | `boolean` | `false` | Enable Force Local mode. When `true`, the extension and CLI run locally; file operations are proxied to the remote server. Only effective when connected to a remote server via SSH. |
-| `claudeCode.sshHost` | `string` | `""` | SSH host override. If empty, auto-detected from the VS Code Remote SSH connection (`remoteAuthority`). Set this manually if auto-detection does not work for your setup. |
-| `claudeCode.sshIdentityFile` | `string` | `""` | Path to SSH private key file (e.g., `~/.ssh/id_rsa`). Only used when `useSSHExec` is `true`. If empty, uses SSH defaults. |
-| `claudeCode.sshExtraArgs` | `string[]` | `[]` | Extra arguments passed to the SSH command (e.g., `["-p", "2222"]` for a non-standard port). Only used when `useSSHExec` is `true`. |
-| `claudeCode.useSSHExec` | `boolean` | `false` | Use direct SSH (`child_process.spawn("ssh", ...)`) for bash and grep instead of VS Code's hidden terminal. Enable this if terminal-based execution does not work in your environment. |
-| `claudeCode.forceLocalDiffMode` | `string` | `"auto"` | How file edits are handled. `"auto"`: edits apply immediately with inline diff in chat. `"review"`: opens a VS Code diff tab with Accept/Reject buttons before writing. |
+| `claudeCode.sshHost` | `string` | `""` | SSH host override. Auto-detected from VS Code's `remoteAuthority` if empty. Only set this if auto-detection fails. |
+| `claudeCode.useSSHExec` | `boolean` | `false` | Use direct SSH (`child_process.spawn("ssh", ...)`) instead of VS Code's hidden terminal for bash/grep execution. Try this if the default terminal-based execution has issues. |
+| `claudeCode.sshIdentityFile` | `string` | `""` | Path to SSH private key. Only used when `useSSHExec` is `true`. |
+| `claudeCode.sshExtraArgs` | `string[]` | `[]` | Extra SSH arguments (e.g., `["-p", "2222"]`). Only used when `useSSHExec` is `true`. |
 
 ### Example settings.json
 
 ```jsonc
 {
+    // Required: enable Force Local mode
     "claudeCode.forceLocal": true,
-    // Optional: override SSH host if auto-detection fails
-    // "claudeCode.sshHost": "my-server.example.com",
-    // Optional: use review mode for edits
+
+    // Optional: use review mode to inspect edits before writing
     // "claudeCode.forceLocalDiffMode": "review"
 }
 ```
@@ -550,21 +609,56 @@ cd /tmp/vsix-build && zip -r /tmp/claude-code-local.vsix .
 code --install-extension /tmp/claude-code-local.vsix
 ```
 
-### 第四步：配置 VS Code 启动标志
+### 第四步：启用 Proposed API 标志
 
-在 VS Code 启动命令中添加 `--enable-proposed-api Anthropic.claude-code-local`。具体方法取决于你的启动方式：
+扩展在 UI 侧使用了 `resolvers` proposed API 进行 FileSystemProvider 注册，必须通过以下方法之一启用。
 
-**macOS（命令行）：**
+**方法 A：修改 `argv.json`（推荐——点击应用图标即可生效）**
+
+此方法使标志永久生效。无论你从 Dock、访达、Spotlight 还是命令行打开 VS Code，都会自动启用。
+
+1. 打开 VS Code
+2. 按 `Cmd+Shift+P` -> 输入 "Configure Runtime Arguments" -> 选择
+3. 这会打开 `~/.vscode/argv.json`，添加 `enable-proposed-api` 键：
+
+```jsonc
+{
+    // ... 已有的键 ...
+    "enable-proposed-api": ["Anthropic.claude-code-local"]
+}
+```
+
+4. 保存文件并**重启 VS Code**。
+
+或者通过终端操作：
+
+```bash
+# 如果 argv.json 不存在会自动创建
+# 如果已存在，需要手动将该键添加到现有 JSON 中
+python3 -c "
+import json, os
+p = os.path.expanduser('~/.vscode/argv.json')
+d = {}
+if os.path.exists(p):
+    lines = [l for l in open(p).readlines() if not l.strip().startswith('//')]
+    d = json.loads(''.join(lines))
+d['enable-proposed-api'] = ['Anthropic.claude-code-local']
+open(p,'w').write(json.dumps(d, indent=4) + '\n')
+print('完成。重启 VS Code 使更改生效。')
+"
+```
+
+**方法 B：命令行标志（每次启动）**
+
 ```bash
 code --enable-proposed-api Anthropic.claude-code-local
 ```
 
-**macOS（在 shell 配置文件中设置别名）：**
+**方法 B（别名）：** 添加到 `~/.zshrc` 或 `~/.bashrc`：
+
 ```bash
 alias code='code --enable-proposed-api Anthropic.claude-code-local'
 ```
-
-该标志是必需的，因为扩展在 UI 侧使用了 `resolvers` proposed API 进行 FileSystemProvider 注册。
 
 ### 第五步：修改后重新构建
 
@@ -583,25 +677,48 @@ cd /tmp/vsix-build && zip -r /tmp/claude-code-local.vsix . && code --install-ext
 
 所有设置都在 VS Code 设置中的 `claudeCode` 命名空间下。
 
-### 强制本地模式设置
+### 核心设置
+
+#### `claudeCode.forceLocal`（布尔值，默认：`false`）
+
+**主开关。** 设为 `true` 启用强制本地模式。启用后：
+
+- 扩展宿主和 CLI 二进制文件运行在你的**本地机器**上（有网络可以调用 API）。
+- 所有文件操作（读取、写入、编辑、搜索、命令执行）通过 VS Code 的 Remote SSH 连接**代理到远程服务器**。
+- CLI 的 8 个内置文件工具被禁用，替换为 6 个 MCP 代理工具。
+
+此设置仅在 VS Code 通过 SSH 连接到远程服务器时生效。在纯本地工作区中无效果。
+
+#### `claudeCode.forceLocalDiffMode`（字符串，默认：`"auto"`）
+
+控制 Claude 的文件编辑如何呈现给你。两种模式：
+
+| 模式 | 行为 |
+|------|------|
+| `"auto"` | 编辑**自动批准**并立即应用到远程文件。聊天 webview 中显示内联差异（红绿高亮）。最快的工作流——与官方扩展的默认行为一致。 |
+| `"review"` | 每次编辑或写入前，打开 **VS Code 差异标签页**，左侧显示旧内容，右侧显示建议的新内容。你可以在接受前**直接修改右侧编辑器中的内容**。点击 **Accept** 写入，**Reject** 或关闭标签页取消。当权限模式为 `bypassPermissions` 或 `acceptEdits` 时自动跳过审查。 |
+
+**建议**：快速迭代时使用 `"auto"`。处理生产代码或希望逐个检查修改时切换到 `"review"`。
+
+### SSH 设置（可选）
+
+这些设置用于高级 SSH 配置。大多数用户无需修改——默认值适用于标准的 VS Code Remote SSH 配置。
 
 | 设置 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `claudeCode.forceLocal` | `boolean` | `false` | 启用强制本地模式。设为 `true` 时，扩展和 CLI 在本地运行，文件操作代理到远程服务器。仅在通过 SSH 连接到远程服务器时有效。 |
-| `claudeCode.sshHost` | `string` | `""` | SSH 主机覆盖。为空时从 VS Code Remote SSH 连接自动检测（`remoteAuthority`）。如果自动检测不适用于你的配置，请手动设置。 |
-| `claudeCode.sshIdentityFile` | `string` | `""` | SSH 私钥文件路径（如 `~/.ssh/id_rsa`）。仅在 `useSSHExec` 为 `true` 时使用。为空时使用 SSH 默认配置。 |
-| `claudeCode.sshExtraArgs` | `string[]` | `[]` | 传递给 SSH 命令的额外参数（如 `["-p", "2222"]` 用于非标准端口）。仅在 `useSSHExec` 为 `true` 时使用。 |
-| `claudeCode.useSSHExec` | `boolean` | `false` | 对 bash 和 grep 使用直接 SSH（`child_process.spawn("ssh", ...)`）而非 VS Code 隐藏终端。如果基于终端的执行在你的环境中不工作，请启用此选项。 |
-| `claudeCode.forceLocalDiffMode` | `string` | `"auto"` | 文件编辑的处理方式。`"auto"`：编辑立即应用，聊天中显示内联差异。`"review"`：写入前打开 VS Code 差异标签页，显示 Accept/Reject 按钮。 |
+| `claudeCode.sshHost` | `string` | `""` | SSH 主机覆盖。为空时从 VS Code 的 `remoteAuthority` 自动检测。仅在自动检测失败时设置。 |
+| `claudeCode.useSSHExec` | `boolean` | `false` | 对 bash 和 grep 使用直接 SSH（`child_process.spawn("ssh", ...)`）而非 VS Code 隐藏终端。如果默认的终端执行方式有问题，可尝试启用。 |
+| `claudeCode.sshIdentityFile` | `string` | `""` | SSH 私钥文件路径。仅在 `useSSHExec` 为 `true` 时使用。 |
+| `claudeCode.sshExtraArgs` | `string[]` | `[]` | 额外 SSH 参数（如 `["-p", "2222"]`）。仅在 `useSSHExec` 为 `true` 时使用。 |
 
 ### 示例 settings.json
 
 ```jsonc
 {
+    // 必需：启用强制本地模式
     "claudeCode.forceLocal": true,
-    // 可选：自动检测失败时覆盖 SSH 主机
-    // "claudeCode.sshHost": "my-server.example.com",
-    // 可选：对编辑使用审查模式
+
+    // 可选：使用审查模式，在写入前检查编辑
     // "claudeCode.forceLocalDiffMode": "review"
 }
 ```
