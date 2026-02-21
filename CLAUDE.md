@@ -1,5 +1,13 @@
 # Claude Code VS Code - Dual Mode (Local + Remote)
 
+## Git Push Proxy
+
+All git push operations must use proxy:
+
+```bash
+export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890
+```
+
 ## Project Goal
 
 Patch the official Claude Code VS Code extension (v2.1.42) to support **two working modes**

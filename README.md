@@ -165,11 +165,16 @@ PreToolUse/PostToolUse hooks detect new IDE errors after edits and inject `<ide_
 
 ## Installation
 
+> **Important Notes:**
+> 1. **VS Code version**: Requires a recent version of VS Code (1.99+, released April 2025 or later). Older versions (e.g. from October 2024) will fail to load the extension.
+> 2. **Git LFS required**: The CLI binaries (~175MB + ~213MB) are stored with [Git LFS](https://git-lfs.github.com/). You must have Git LFS installed and run `git lfs pull` after cloning, otherwise the binary files will be small LFS pointer files instead of actual executables.
+
 ### Step 1: Clone the Repository
 
 ```bash
 git clone <this-repo-url> ~/code/claude-code-vscode
 cd ~/code/claude-code-vscode
+git lfs pull
 ```
 
 ### Step 2: Build the VSIX Package
@@ -525,11 +530,16 @@ resources/native-binaries/
 
 ## 安装步骤
 
+> **安装注意事项：**
+> 1. **VS Code 版本**：需要较新版本的 VS Code（1.99+，2025 年 4 月或之后发布）。旧版本（如 2024 年 10 月的版本）无法加载本扩展。
+> 2. **需要 Git LFS**：CLI 二进制文件（约 175MB + 213MB）使用 [Git LFS](https://git-lfs.github.com/) 存储。克隆后必须安装 Git LFS 并执行 `git lfs pull`，否则二进制文件只是几 KB 的 LFS 指针文件，无法正常运行。
+
 ### 第一步：克隆仓库
 
 ```bash
 git clone <仓库地址> ~/code/claude-code-vscode
 cd ~/code/claude-code-vscode
+git lfs pull
 ```
 
 ### 第二步：构建 VSIX 包
